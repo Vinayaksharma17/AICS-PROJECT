@@ -108,7 +108,7 @@ exports.generateCertificate = async (req, res) => {
       doc.text(wTile + wGap + wTile, 25, y, { lineBreak: false })
     doc.restore()
 
-    // ── 2. TRIPLE GOLD BORDER ────────────────────────────────────────────────
+    // ── 2. DOUBLE GOLD BORDER ────────────────────────────────────────────────
     doc
       .lineWidth(5.5)
       .strokeColor(GOLD)
@@ -118,11 +118,6 @@ exports.generateCertificate = async (req, res) => {
       .lineWidth(1.5)
       .strokeColor(GOLD)
       .rect(9.5, 9.5, W - 19, H - 19)
-      .stroke()
-    doc
-      .lineWidth(0.5)
-      .strokeColor(GOLD)
-      .rect(13, 13, W - 26, H - 26)
       .stroke()
 
     // ── 3. TOP INFO BAR ───────────────────────────────────────────────────────
@@ -265,57 +260,66 @@ exports.generateCertificate = async (req, res) => {
     // hRule(doc, W / 2 - 172, certLineY + 4, W / 2 + 172, 0.7, GOLD)
 
     // ── 7. CONTENT BOX ───────────────────────────────────────────────────────
-    const BX = 16,
+    const BX = 40,
       BY = certLineY + 40,
-      BW = W - 32,
+      BW = W - 80,
       BH = 236
 
     doc.lineWidth(2.5).strokeColor(GOLD).rect(BX, BY, BW, BH).stroke()
-    doc
-    // .lineWidth(0.7)
-    // .strokeColor(GOLD)
-    // .rect(BX + 3, BY + 3, BW - 6, BH - 6)
-    // .stroke()
+
+    // Background image inside content box — centered, reduced size
+    doc.save()
+    doc.rect(BX + 2, BY + 2, BW - 4, BH - 4).clip() // clip to box interior
+    doc.opacity(1)
+    const bgImgW = BW * 0.7 // 50% of box width
+    const bgImgH = BH * 0.8 // 70% of box height
+    const bgImgX = BX + (BW - bgImgW) / 2 // horizontally centered
+    const bgImgY = BY + (BH - bgImgH) / 2 // vertically centered
+    safeImage(doc, ip('aics-background-image.png'), bgImgX, bgImgY, {
+      width: bgImgW,
+      height: bgImgH,
+    })
+    doc.restore()
 
     // Top-left: small accreditation text
-    doc.font('Helvetica-Oblique').fontSize(6.5).fillColor('#888888')
-    doc.text('Accridated by Govt. of Karanataka and India', BX + 8, BY + 9, {
-      lineBreak: false,
-    })
+    // doc.font('Helvetica-Oblique').fontSize(6.5).fillColor('#888888')
+    // doc.text('Accridated by Govt. of Karanataka and India', BX + 8, BY + 9, {
+    //   lineBreak: false,
+    // })
 
     // Top-right: "This is certify that"
-    doc.font('Times-BoldItalic').fontSize(12.5).fillColor('#333333')
+    doc.font('Times-BoldItalic').fontSize(17).fillColor(DARK)
     doc.text('This is certify that', BX + 8, BY + 8, {
-      width: BW - 16,
+      width: BW - 30,
       align: 'right',
       lineBreak: false,
     })
 
-    hRule(doc, BX + 6, BY + 28, BX + BW - 6, 0.5, GOLD)
+    // hRule(doc, BX + 6, BY + 28, BX + BW - 6, 0.5, GOLD)
 
     const IL = BX + 12,
       IR = BX + BW - 12,
-      LH = 28
+      LH = 32 // reduced from 40 so all 6 rows fit inside BH=236
 
     // Row 1: prefix + STUDENT FULL NAME
-    const R1Y = BY + 40
-    const shriTxt = 'Shri / Shrimati / Kumar / Kumari'
-    doc.font('Times-Italic').fontSize(11).fillColor(DARK)
+    const R1Y = BY + 30
+    const shriTxt = 'Shri/Shrimati/Kumar/Kumari'
+    doc.font('Times-BoldItalic').fontSize(17).fillColor(DARK)
     doc.text(shriTxt, IL, R1Y, { lineBreak: false })
     const shriW = doc.widthOfString(shriTxt)
-    const nameX = IL + shriW + 10
-    doc.font('Helvetica-Bold').fontSize(13.5).fillColor(BLUE)
+    const nameX = IL + shriW + 14
+    doc.font('Helvetica-Bold').fontSize(13.5).fillColor(DARK)
     doc.text(fullName, nameX, R1Y - 1, { width: IR - nameX, lineBreak: false })
     hRule(doc, nameX, R1Y + 17, IR, 0.8, GREY)
 
     // Row 2: S/D/W + FATHER NAME
     const R2Y = R1Y + LH
-    const sdTxt = 'S / D / W / Shri / Shrimati'
-    doc.font('Times-Italic').fontSize(11).fillColor(DARK)
+    const sdTxt = 'S/D/W/Shri/Shrimati'
+    doc.font('Times-BoldItalic').fontSize(17).fillColor(DARK)
     doc.text(sdTxt, IL, R2Y, { lineBreak: false })
     const sdW = doc.widthOfString(sdTxt)
-    const fatherX = IL + sdW + 10
-    doc.font('Helvetica-Bold').fontSize(13.5).fillColor(BLUE)
+    const fatherX = IL + sdW + 14
+    doc.font('Helvetica-Bold').fontSize(13.5).fillColor(DARK)
     doc.text((student.fatherName || '').toUpperCase(), fatherX, R2Y - 1, {
       width: IR - fatherX,
       lineBreak: false,
@@ -323,8 +327,8 @@ exports.generateCertificate = async (req, res) => {
     hRule(doc, fatherX, R2Y + 17, IR, 0.8, GREY)
 
     // Row 3: "Has successfully Completed / ~~Undergone~~ the course"
-    const R3Y = R2Y + LH + 6
-    doc.font('Times-BoldItalic').fontSize(12.5).fillColor(DARK)
+    const R3Y = R2Y + LH + 4
+    doc.font('Times-BoldItalic').fontSize(16)
     const p1 = 'Has successfully Completed / ',
       p2 = 'Undergone',
       p3 = ' the course'
@@ -340,11 +344,11 @@ exports.generateCertificate = async (req, res) => {
 
     // Row 4: "in" + COURSE NAME
     const R4Y = R3Y + LH
-    doc.font('Times-Italic').fontSize(11).fillColor(DARK)
+    doc.font('Times-BoldItalic').fontSize(16).fillColor(DARK)
     doc.text('in', IL, R4Y, { lineBreak: false })
     const inW = doc.widthOfString('in')
     const courseX = IL + inW + 10
-    doc.font('Helvetica-Bold').fontSize(13).fillColor(BLUE)
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
     doc.text(student.course.name, courseX, R4Y - 1, {
       width: IR - courseX,
       lineBreak: false,
@@ -353,45 +357,73 @@ exports.generateCertificate = async (req, res) => {
 
     // Row 5: From [date] for a Duration of [N months]
     const R5Y = R4Y + LH + 2
-    let rx = IL
-    const seg = (txt, font, sz, color, ul) => {
-      doc.font(font).fontSize(sz).fillColor(color)
-      doc.text(txt, rx, R5Y, { lineBreak: false })
-      const tw = doc.widthOfString(txt)
-      if (ul) hRule(doc, rx, R5Y + sz + 2, rx + tw, 0.8, GREY)
-      rx += tw
-    }
-    seg('From  ', 'Times-BoldItalic', 12, DARK)
-    seg(fmtDate(student.enrollmentDate), 'Helvetica-Bold', 12, BLUE, true)
-    seg('  for a Duration of  ', 'Times-BoldItalic', 12, DARK)
-    seg(
-      `${student.courseDuration || ''} months`,
-      'Helvetica-Bold',
-      12,
-      BLUE,
-      true,
-    )
+    const dateULW = 110 // fixed underline width for date value
+    const durULW = 90 // fixed underline width for duration value
+    const dateVal = fmtDate(student.enrollmentDate)
+    const durVal = `${student.courseDuration || ''} months`
 
-    // Row 6: With [GRADE] Grade
-    const R6Y = R5Y + LH + 8
-    const grade = student.grade || 'A'
-    doc.font('Times-BoldItalic').fontSize(13).fillColor('#444444')
-    doc.text('With', 0, R6Y + 2, {
-      width: W / 2 - 8,
-      align: 'right',
+    // "From  "
+    doc.font('Times-BoldItalic').fontSize(16).fillColor(DARK)
+    doc.text('From', IL, R5Y, { lineBreak: false })
+    const fromW = doc.widthOfString('From')
+
+    // date underline + value centered on it
+    const dateULX = IL + fromW + 8
+    hRule(doc, dateULX, R5Y + 18, dateULX + dateULW, 0.8, GREY)
+    doc.font('Helvetica-Bold').fontSize(12).fillColor(DARK)
+    doc.text(dateVal, dateULX, R5Y + 2, {
+      width: dateULW,
+      align: 'center',
       lineBreak: false,
     })
-    doc.font('Helvetica-Bold').fontSize(28).fillColor(BLUE)
-    const grX = W / 2 + 2
-    doc.text(grade, grX, R6Y - 4, { lineBreak: false })
-    const grW = doc.widthOfString(grade)
-    hRule(doc, grX - 2, R6Y + 25, grX + grW + 6, 1.5, GOLD)
-    doc.font('Times-BoldItalic').fontSize(13).fillColor('#444444')
-    doc.text('Grade', grX + grW + 10, R6Y + 2, { lineBreak: false })
+
+    // "  for a Duration of  "
+    const forX = dateULX + dateULW + 8
+    doc.font('Times-BoldItalic').fontSize(16).fillColor(DARK)
+    doc.text('for a Duration of', forX, R5Y, { lineBreak: false })
+    const forW = doc.widthOfString('for a Duration of')
+
+    // duration underline + value centered on it
+    const durULX = forX + forW + 8
+    hRule(doc, durULX, R5Y + 18, durULX + durULW, 0.8, GREY)
+    doc.font('Helvetica-Bold').fontSize(12).fillColor(DARK)
+    doc.text(durVal, durULX, R5Y + 2, {
+      width: durULW,
+      align: 'center',
+      lineBreak: false,
+    })
+
+    // Row 6: With [GRADE] Grade — centered
+    const R6Y = R5Y + LH + 4
+    const grade = student.grade || 'A'
+    // Measure all parts to center the whole line
+    doc.font('Times-BoldItalic').fontSize(13)
+    const withW = doc.widthOfString('With')
+    const gradeW = doc.widthOfString('Grade')
+    doc.font('Helvetica-Bold').fontSize(16)
+    const grValW = doc.widthOfString(grade)
+    const gapA = 12,
+      gapB = 12,
+      ulPad = 16 // gaps and underline padding
+    const totalGrW = withW + gapA + ulPad + grValW + ulPad + gapB + gradeW
+    const grStartX = (W - totalGrW) / 2
+    // "With"
+    doc.font('Times-BoldItalic').fontSize(16).fillColor(DARK)
+    doc.text('With', grStartX, R6Y + 2, { lineBreak: false })
+    // Grade value on underline
+    const grValX = grStartX + withW + gapA
+    hRule(doc, grValX, R6Y + 18, grValX + ulPad * 2 + grValW, 0.8, GREY)
+    doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK)
+    doc.text(grade, grValX + ulPad, R6Y - 1, { lineBreak: false })
+    // "Grade"
+    doc.font('Times-BoldItalic').fontSize(16).fillColor(DARK)
+    doc.text('Grade', grValX + ulPad * 2 + grValW + gapB, R6Y + 2, {
+      lineBreak: false,
+    })
 
     // ── 8. GRADE LEGEND ───────────────────────────────────────────────────────
     const legendY = BY + BH + 6
-    doc.font('Helvetica-Bold').fontSize(8.2).fillColor(DARK)
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(DARK)
     doc.text(
       'Grades: 50 to 60-C,  60 to 70-B,  70 to 75-B+,  75 to 85-A,  85 and Above-A+',
       BX + 6,
@@ -406,7 +438,7 @@ exports.generateCertificate = async (req, res) => {
     const pW = 110,
       pH = 138
     const pX = (W - pW) / 2,
-      pY = BOT + 52
+      pY = BOT + 24 // moved up (was BOT + 52)
 
     doc.save()
     doc
@@ -491,97 +523,136 @@ exports.generateCertificate = async (req, res) => {
     }
     doc.restore()
 
-    // Subjects — left of photo
+    // Subjects — aligned to match the Director signature zone exactly (18 to 190)
     const subjects =
       student.course.subjects && student.course.subjects.length > 0
         ? student.course.subjects
         : []
-    const subjX = 20,
-      subjMaxW = pX - subjX - 8
+    const subjX = 18, // same left edge as dirLineX1
+      subjMaxW = 190 - 18 // same width as Director zone
     let subjY = BOT + 4
-    doc.font('Helvetica-Bold').fontSize(9.5).fillColor(DARK)
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(DARK)
     doc.text(student.course.name, subjX, subjY, {
       width: subjMaxW,
+      align: 'center',
       lineBreak: false,
     })
     subjY += 15
     doc.font('Helvetica-Bold').fontSize(8.8).fillColor(DARK)
     subjects.forEach((s) => {
-      doc.text(s, subjX, subjY, { width: subjMaxW, lineBreak: false })
+      doc.text(s, subjX, subjY, {
+        width: subjMaxW,
+        align: 'center',
+        lineBreak: false,
+      })
       subjY += 13
     })
 
-    // Date of issue — right of photo
-    const dateLX = pX + pW + 8,
-      dateRE = W - 18
-    doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
+    // Date of issue — aligned to match the President signature zone exactly
+    const dateLX = W - 190, // same left edge as presLineX1
+      dateRE = W - 18 // same right edge as presLineX2
+    const dateZoneW = dateRE - dateLX
+    doc.font('Helvetica-Bold').fontSize(14).fillColor(DARK)
     doc.text(
       fmtDMY(student.certificateIssuedDate || new Date()),
       dateLX,
-      BOT + 8,
-      { width: dateRE - dateLX, align: 'right', lineBreak: false },
+      BOT + 10,
+      { width: dateZoneW, align: 'center', lineBreak: false },
     )
-    doc.font('Helvetica').fontSize(9).fillColor('#444444')
-    doc.text('Date of issue', dateLX, BOT + 26, {
-      width: dateRE - dateLX,
-      align: 'right',
+    doc.font('Helvetica-Bold').fontSize(14).fillColor(DARK)
+    doc.text('Date of issue', dateLX, BOT + 28, {
+      width: dateZoneW,
+      align: 'center',
       lineBreak: false,
     })
 
     // ── 10. SIGNATURES ────────────────────────────────────────────────────────
     //
-    //  Director: signature image (401×134) + "Director" label below the line
-    //  President: president_signature.png (625×444) which ALREADY contains
-    //             the signature AND "PRESIDENT" text — no separate label needed
+    //  Anchored from footer upward so they never overlap the footer text.
+    //  sigLineY = footer top - signature height - label height - gap
     //
-    const sigLineY = pY + pH + 0
-    const sigLabelY = sigLineY + 0
+    const FY = H - 50 // footer starts here (defined early for sig calc)
+    const sigLineY = FY - 50 // signature line sits 30pt above footer
 
-    // Director (left)
-    safeImage(doc, ip('director_signature.png'), 20, sigLineY - 34, {
-      width: 92,
-      height: 30,
-      fit: [92, 30],
-    })
-    hRule(doc, 18, sigLineY, 174, 0.9, DARK)
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(DARK)
-    doc.text('Director', 18, sigLabelY, {
-      width: 156,
+    // ── Director (left) ──
+    const dirSigW = 110,
+      dirSigH = dirSigW * (134 / 401)
+    const dirLineX1 = 18,
+      dirLineX2 = 190
+    const dirCenterX = (dirLineX1 + dirLineX2) / 2
+    safeImage(
+      doc,
+      ip('director_sign_removebg.png'),
+      dirCenterX - dirSigW / 2,
+      sigLineY - dirSigH - 2,
+      { width: dirSigW, height: dirSigH },
+    )
+    hRule(doc, dirLineX1, sigLineY, dirLineX2, 1.2, DARK)
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
+    doc.text('Director', dirLineX1, sigLineY + 4, {
+      width: dirLineX2 - dirLineX1,
       align: 'center',
       lineBreak: false,
     })
 
-    // President (right)
-    const presW = 78,
-      presH = presW * (444 / 625)
-    safeImage(doc, ip('president_signature.png'), W - 172, sigLineY - 40, {
-      width: presW,
-      height: presH,
+    // ── President (right) ──
+    const presSigW = 130,
+      presSigH = presSigW * (134 / 401)
+    const presLineX1 = W - 190,
+      presLineX2 = W - 18
+    const presCenterX = (presLineX1 + presLineX2) / 2
+    safeImage(
+      doc,
+      ip('president_sign_removebg.png'),
+      presCenterX - presSigW / 2,
+      sigLineY - presSigH - 2,
+      { width: presSigW, height: presSigH },
+    )
+    hRule(doc, presLineX1, sigLineY, presLineX2, 1.2, DARK)
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
+    doc.text('President', presLineX1, sigLineY + 4, {
+      width: presLineX2 - presLineX1,
+      align: 'center',
+      lineBreak: false,
     })
-    hRule(doc, W - 174, sigLineY, W - 18, 0.9, DARK)
-    // NOTE: president_signature.png already contains "PRESIDENT" text — no label needed
 
     // ── 11. FOOTER ────────────────────────────────────────────────────────────
-    const FY = H - 44
-    hRule(doc, 16, FY - 5, W - 16, 0.9, GOLD)
-    doc.font('Helvetica-Bold').fontSize(7.2).fillColor(DARK)
+    // FY is already defined above in the signatures section
+    // hRule(doc, 16, FY - 6, W - 16, 0.9, GOLD)
+
+    // Line 1: HO label (bold) + address (bold-italic)
+    const hoLabel = 'HO : '
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK)
+    const hoLW = doc.widthOfString(hoLabel)
+    const hoAddr = '2nd Floor Vishnu Complex, S.S. Road, Vijayapura-586101.'
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK)
+    const hoAddrW = doc.widthOfString(hoAddr)
+    const hoLineW = hoLW + hoAddrW
+    const hoStartX = (W - hoLineW) / 2
+    doc.text(hoLabel, hoStartX, FY, { lineBreak: false })
+    doc.font('Helvetica-BoldOblique').fontSize(11).fillColor(DARK)
+    doc.text(hoAddr, hoStartX + hoLW, FY, { lineBreak: false })
+
+    // Line 2: Center label (bold) + address (bold-italic)
+    const ctLabel = 'Center : '
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK)
+    const ctLW = doc.widthOfString(ctLabel)
+    const ctAddr = '2nd Floor Vishnu Complex, S.S. Road, Vijayapura-586101.'
+    doc.font('Helvetica-BoldOblique').fontSize(11).fillColor(DARK)
+    const ctAddrW = doc.widthOfString(ctAddr)
+    const ctLineW = ctLW + ctAddrW
+    const ctStartX = (W - ctLineW) / 2
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK)
+    doc.text(ctLabel, ctStartX, FY + 14, { lineBreak: false })
+    doc.font('Helvetica-BoldOblique').fontSize(11).fillColor(DARK)
+    doc.text(ctAddr, ctStartX + ctLW, FY + 14, { lineBreak: false })
+
+    // Line 3: trademark notice — all bold
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(DARK)
     doc.text(
-      'HO : 2nd Floor Vishnu Complex, S.S. Road, Vijayapura-586101.',
+      'AICES&AICES logo are registered trade marks of ACADEMIC INSTITUTE OF COMPUTER EDUCATION SOCIETY',
       0,
-      FY,
-      { width: W, align: 'center', lineBreak: false },
-    )
-    doc.text(
-      'Center : 2nd Floor Vishnu Complex, S.S. Road, Vijayapura-586101.',
-      0,
-      FY + 11,
-      { width: W, align: 'center', lineBreak: false },
-    )
-    doc.font('Helvetica-Bold').fontSize(6.2).fillColor(DARK)
-    doc.text(
-      'AICES & AICES logo are registered trade marks of ACADEMIC INSTITUTE OF COMPUTER EDUCATION SOCIETY',
-      0,
-      FY + 23,
+      FY + 28,
       { width: W, align: 'center', lineBreak: false },
     )
 
