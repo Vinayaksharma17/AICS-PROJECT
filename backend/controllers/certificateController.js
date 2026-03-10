@@ -31,13 +31,19 @@ function resolvePhotoPath(s) {
   return null
 }
 function safeImage(doc, file, x, y, opts) {
-  if (file && fs.existsSync(file)) {
-    try {
+  // accepts either a file path (string) or a pre-loaded Buffer
+  if (!file) return false
+  try {
+    if (Buffer.isBuffer(file)) {
       doc.image(file, x, y, opts)
       return true
-    } catch (e) {
-      console.error('img', e.message)
     }
+    if (fs.existsSync(file)) {
+      doc.image(file, x, y, opts)
+      return true
+    }
+  } catch (e) {
+    console.error('img', e.message)
   }
   return false
 }
@@ -417,16 +423,12 @@ exports.generateCertificate = async (req, res) => {
     const photoPath = resolvePhotoPath(student)
     if (photoPath) {
       try {
-        // Auto-rotate via EXIF at high resolution — PDFKit downscales with quality
         const correctedBuffer = await sharp(photoPath)
-          .rotate() // apply EXIF orientation correction
-          .resize(600, 800, {
-            // high-res so PDFKit downscales sharply
-            fit: 'cover',
-            position: 'centre',
-          })
-          .jpeg({ quality: 95 }) // high quality JPEG
+          .rotate()
+          .resize(600, 800, { fit: 'cover', position: 'centre' })
+          .jpeg({ quality: 95 })
           .toBuffer()
+        doc.save()
         doc.rect(pX + 1, pY + 1, pW - 2, pH - 2).clip()
         doc.image(correctedBuffer, pX + 1, pY + 1, {
           width: pW - 2,
@@ -451,14 +453,27 @@ exports.generateCertificate = async (req, res) => {
     }
     doc.restore()
 
-    // AICE circular stamp — image overlapping bottom-right of photo
-    const sealSize = 100 // diameter of the stamp image
-    const sealX = pX + pW - sealSize / 2 // overlaps right edge of photo by half
-    const sealY = pY + pH - sealSize / 2 - 20 // moved up (was +10)
-    safeImage(doc, ip('seal-removebg-preview.png'), sealX, sealY, {
-      width: sealSize,
-      height: sealSize,
-    })
+    // AICE circular stamp — resized to perfect square via sharp to avoid oval distortion
+    const sealSize = 105
+    const sealPath = ip('seal-removebg-preview.png')
+    const sealBuffer = fs.existsSync(sealPath)
+      ? await sharp(sealPath)
+          .resize(sealSize * 3, sealSize * 3, {
+            // 3x for high DPI quality
+            fit: 'contain', // preserves aspect, no stretch
+            background: { r: 0, g: 0, b: 0, alpha: 0 }, // transparent bg
+          })
+          .png()
+          .toBuffer()
+      : null
+    const sealX = pX + pW - sealSize / 2 // overlaps right edge of photo
+    const sealY = pY + pH - sealSize / 2 - 20 // overlaps bottom, shifted up
+    if (sealBuffer) {
+      safeImage(doc, sealBuffer, sealX, sealY, {
+        width: sealSize,
+        height: sealSize,
+      })
+    }
 
     // Course description lines — 2-column layout when > 8 lines
     // Split description by newline; fall back to subjects array, then course name
@@ -563,7 +578,7 @@ exports.generateCertificate = async (req, res) => {
     })
 
     // ── President (right) ──
-    const presSigW = 130,
+    const presSigW = 110,
       presSigH = presSigW * (134 / 401)
     const presLineX1 = W - 190,
       presLineX2 = W - 18
