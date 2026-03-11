@@ -315,18 +315,29 @@ exports.generateCertificate = async (req, res) => {
     cx += uW
     doc.text(p3, cx, R3Y, { lineBreak: false })
 
-    // Row 4: "in" + COURSE NAME
+    // Row 4: "in" + COURSE NAME (course name centered, underline from "in" to right)
     const R4Y = R3Y + LH
+    const courseName = (student.course && student.course.name) || ''
+
+    // Draw "in"
     doc.font('Times-BoldItalic').fontSize(16).fillColor(DARK)
     doc.text('in', IL, R4Y, { lineBreak: false })
     const inW = doc.widthOfString('in')
-    const courseX = IL + inW + 10
+
+    // Center the course name within box
+    doc.font('Helvetica-Bold').fontSize(13)
+    const courseW = doc.widthOfString(courseName)
+    const courseX = BX + (BW - courseW) / 2
+
+    // Draw course name
     doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
-    doc.text(student.course.name, courseX, R4Y - 1, {
+    doc.text(courseName, courseX, R4Y - 1, {
       width: IR - courseX,
       lineBreak: false,
     })
-    hRule(doc, courseX, R4Y + 16, IR, 0.8, GREY)
+
+    // Underline from "in" to right edge
+    hRule(doc, IL + inW + 2, R4Y + 16, IR, 0.8, GREY)
 
     // Row 5: From [date] for a Duration of [N months]
     const R5Y = R4Y + LH + 2
@@ -566,12 +577,12 @@ exports.generateCertificate = async (req, res) => {
     safeImage(
       doc,
       ip('director_sign_removebg.png'),
-      dirCenterX - dirSigW / 2,
-      sigLineY - dirSigH - 2,
+      dirCenterX - dirSigW / 2.5,
+      sigLineY - dirSigH - 0.5,
       { width: dirSigW, height: dirSigH },
     )
     doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
-    doc.text('Director', dirLineX1, sigLineY + 1, {
+    doc.text('Director', dirLineX1, sigLineY, {
       width: dirLineX2 - dirLineX1,
       align: 'center',
       lineBreak: false,
@@ -586,12 +597,12 @@ exports.generateCertificate = async (req, res) => {
     safeImage(
       doc,
       ip('president_sign_removebg.png'),
-      presCenterX - presSigW / 2,
+      presCenterX - presSigW / 1.5,
       sigLineY - presSigH - 2,
       { width: presSigW, height: presSigH },
     )
     doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
-    doc.text('President', presLineX1, sigLineY + 4, {
+    doc.text('President', presLineX1, sigLineY, {
       width: presLineX2 - presLineX1,
       align: 'center',
       lineBreak: false,
