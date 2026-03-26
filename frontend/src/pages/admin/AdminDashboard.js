@@ -11,31 +11,23 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [studentsRes, coursesRes, feesRes, enquiriesRes, staffRes] = await Promise.all([
-          api.get('/students'),
-          api.get('/courses'),
-          api.get('/admin/fees-overview').catch(() => ({ data: {} })),
-          api.get('/enquiries').catch(() => ({ data: [] })),
-          api.get('/admin/staff').catch(() => ({ data: [] }))
+        const [dashRes, studentsRes] = await Promise.all([
+          api.get('/admin/dashboard'),
+          api.get('/students?limit=5').catch(() => ({ data: [] }))
         ]);
 
-        const students = studentsRes.data;
-        const totalStudents = students.length;
-        const staff = Array.isArray(staffRes.data) ? staffRes.data : [];
-        const activeStaff = staff.filter(s => s.isActive !== false).length;
-        const totalCollected = students.reduce((s, st) => s + (st.paidFees || 0), 0);
-        const totalPending = students.reduce((s, st) => s + (st.pendingFees || 0), 0);
-        const certEligible = students.filter(s => s.certificateEligible && !s.certificateIssued).length;
-        const enquiries = Array.isArray(enquiriesRes.data) ? enquiriesRes.data : [];
-        const newEnquiries = enquiries.filter(e => e.status === 'new').length;
-
+        const dash = dashRes.data;
         setStats({
-          totalStudents, activeStaff,
-          totalCourses: coursesRes.data.length,
-          totalCollected, totalPending,
-          certEligible, newEnquiries
+          totalStudents:  dash.enrolled         || 0,
+          activeStaff:    dash.staff            || 0,
+          totalCourses:   dash.courses          || 0,
+          totalCollected: dash.fees?.collected  || 0,
+          totalPending:   dash.fees?.pending    || 0,
+          certEligible:   dash.certEligible     || 0,
+          newEnquiries:   dash.newEnquiries     || 0
         });
 
+        const students = Array.isArray(studentsRes.data) ? studentsRes.data : [];
         setRecentStudents(students.slice(0, 5));
       } catch (err) {
         console.error(err);

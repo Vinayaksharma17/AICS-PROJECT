@@ -15,8 +15,15 @@ export default function Certificates() {
 
   const fetchStudents = useCallback(async () => {
     try {
-      const { data } = await api.get('/students');
-      setStudents(data);
+      const [eligibleRes, issuedRes] = await Promise.all([
+        api.get('/certificates/eligible'),
+        api.get('/certificates/issued')
+      ]);
+      const eligible = (eligibleRes.data || []).map(s => ({ ...s, _eligibilityStatus: 'eligible' }));
+      const issued = (issuedRes.data || []).map(s => ({ ...s, _eligibilityStatus: 'issued' }));
+      // Merge: issued takes precedence if student appears in both
+      const issuedIds = new Set(issued.map(s => s._id));
+      setStudents([...issued, ...eligible.filter(s => !issuedIds.has(s._id))]);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, []);
@@ -25,21 +32,11 @@ export default function Certificates() {
 
   const showAlert = (type, msg) => { setAlert({ type, message: msg }); setTimeout(() => setAlert(null), 4000); };
 
-  // Check eligibility based on NEW criteria
-  // Issue #8: TESTING MODE - eligible if full payment + documents uploaded (no course completion required)
   const checkEligibility = (s) => {
     const fullPaid = (s.pendingFees || 0) === 0;
-    const completed = s.courseCompleted === true;
     const docsUploaded = s.profileComplete === true;
-    let sevenDaysPassed = false;
-    if (s.courseEndDate) {
-      const endDate = new Date(s.courseEndDate);
-      endDate.setDate(endDate.getDate() + 7);
-      sevenDaysPassed = new Date() >= endDate;
-    }
-    // TESTING MODE: certificate can be generated if fees paid fully (no course completion wait required)
     const eligible = fullPaid && docsUploaded;
-    return { fullPaid, completed, sevenDaysPassed, docsUploaded, eligible };
+    return { fullPaid, docsUploaded, eligible };
   };
 
   const getEligibilityStatus = (s) => {
@@ -86,14 +83,6 @@ export default function Certificates() {
     } catch (err) {
       showAlert('error', err.response?.data?.message || 'Failed to generate certificate');
     } finally { setGenerating(null); }
-  };
-
-  const markComplete = async (studentId) => {
-    try {
-      await api.put(`/students/${studentId}`, { courseCompleted: true });
-      fetchStudents();
-      showAlert('success', 'Course marked as completed!');
-    } catch (err) { showAlert('error', 'Failed to update'); }
   };
 
   return (

@@ -59,9 +59,9 @@ export default function AdminLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map((item, i) => {
+          {navItems.map((item) => {
             if (item.section) return (
-              <div key={i} className="nav-section-title">{item.section}</div>
+              <div key={`section-${item.section}`} className="nav-section-title">{item.section}</div>
             );
             const isActive = location.pathname === item.path ||
               (item.path !== '/admin' && location.pathname.startsWith(item.path));

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
+
+const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5001';
 
 const PER_PAGE = 8;
 const PAYMENT_METHODS = ['cash', 'upi'];
@@ -135,7 +136,7 @@ export default function StaffStudents() {
   const [errors,            setErrors]            = useState({});
   const [couponInfo,        setCouponInfo]        = useState(null);
   const [couponLoading,     setCouponLoading]     = useState(false);
-  const [finalFees,         setFinalFees]         = useState(0);
+  const [,                  setFinalFees]         = useState(0);
   const [paymentForm,       setPaymentForm]       = useState({ amount: '', paymentMethod: 'cash', remarks: '' });
   const [search,            setSearch]            = useState('');
   const [filter,            setFilter]            = useState('all');
@@ -146,7 +147,6 @@ export default function StaffStudents() {
   const [cameraField,       setCameraField]       = useState(null);
   const [uploadDocModal,    setUploadDocModal]    = useState(emptyDocs);
   const [uploadDocPreviews, setUploadDocPreviews] = useState(emptyPreviews);
-  const navigate = useNavigate();
 
   /* ── Data fetching ─────────────────────────────────────────────────────── */
   const fetchStudents = useCallback(async () => {
@@ -285,7 +285,7 @@ export default function StaffStudents() {
       if (docs.qualificationDoc) fd.append('qualificationDoc', docs.qualificationDoc);
       if (docs.aadharCard)      fd.append('aadharCard',      docs.aadharCard);
       const { data } = await api.post('/students', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (data.invoice?.url) window.open(`http://localhost:5000${data.invoice.url}`, '_blank');
+      if (data.invoice?.url) window.open(`${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`, '_blank');
       showAlert('success', 'Student added successfully!');
       setShowModal(false); setForm(emptyForm); setCouponInfo(null); setFinalFees(0); setDocs(emptyDocs); setPreviews(emptyPreviews);
       fetchStudents();
@@ -300,7 +300,7 @@ export default function StaffStudents() {
     setSubmitting(true);
     try {
       const { data } = await api.post(`/students/${selectedStudent._id}/payment`, { amount: Number(paymentForm.amount), paymentMethod: paymentForm.paymentMethod, remarks: paymentForm.remarks });
-      if (data.invoice?.url) window.open(`http://localhost:5000${data.invoice.url}`, '_blank');
+      if (data.invoice?.url) window.open(`${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`, '_blank');
       showAlert('success', 'Payment recorded!'); setShowPaymentModal(false); setPaymentForm({ amount: '', paymentMethod: 'cash', remarks: '' }); fetchStudents();
     } catch (err) { showAlert('error', err.response?.data?.message || 'Failed'); }
     finally { setSubmitting(false); }
@@ -340,7 +340,7 @@ export default function StaffStudents() {
   const openDocUpload = s => { setSelectedStudent(s); setUploadDocModal(emptyDocs); setUploadDocPreviews(emptyPreviews); setShowDocModal(true); };
 
   const fmt       = n  => `₹${(n || 0).toLocaleString('en-IN')}`;
-  const getDocUrl = (s, field) => s[field]?.fileUrl ? `http://localhost:5000${s[field].fileUrl}` : null;
+  const getDocUrl = (s, field) => s[field]?.fileUrl ? `${BASE_URL}${s[field].fileUrl}?token=${localStorage.getItem('token')}` : null;
   const isImage   = url => url && /\.(jpg|jpeg|png)$/i.test(url);
 
   const DocThumb = ({ url, label }) => !url

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 
+const BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5001';
 const PER_PAGE = 8;
 const PAYMENT_METHODS = ['cash', 'upi'];
 
@@ -89,14 +89,13 @@ export default function StudentManagement() {
   const [errors, setErrors] = useState({});
   const [couponInfo, setCouponInfo] = useState(null);
   const [couponLoading, setCouponLoading] = useState(false);
-  const [finalFees, setFinalFees] = useState(0);
+  const [, setFinalFees] = useState(0);
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentMethod: 'cash', remarks: '' });
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [alert, setAlert] = useState(null);
-  const navigate = useNavigate();
   const [availableInstallments, setAvailableInstallments] = useState([1, 2, 3, 4, 6, 12]);
   const [cameraField, setCameraField] = useState(null); // which doc field has camera open
   // Document upload modal state
@@ -285,7 +284,6 @@ export default function StudentManagement() {
     setSubmitting(true);
     try {
       const installments = buildInstallments();
-      const finalTotal = couponInfo ? couponInfo.finalFees : Number(form.totalFees);
       // None or single installment = full payment upfront
       // Use actual entered payment — 'none' means no installment plan, NOT auto-full payment
       const initialPay = Number(form.initialPayment) || 0;
@@ -312,7 +310,7 @@ export default function StudentManagement() {
       const { data } = await api.post('/students', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 
       if (data.invoice && data.invoice.url) {
-        window.open(`http://localhost:5000${data.invoice.url}`, '_blank');
+        window.open(`${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`, '_blank');
       }
       showAlert('success', 'Student added successfully!');
       setShowModal(false);
@@ -331,7 +329,7 @@ export default function StudentManagement() {
     setSubmitting(true);
     try {
       const { data } = await api.post(`/students/${selectedStudent._id}/payment`, { amount: Number(paymentForm.amount), paymentMethod: paymentForm.paymentMethod, remarks: paymentForm.remarks });
-      if (data.invoice && data.invoice.url) window.open(`http://localhost:5000${data.invoice.url}`, '_blank');
+      if (data.invoice && data.invoice.url) window.open(`${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`, '_blank');
       showAlert('success', 'Payment recorded! Invoice opened in new tab.');
       setShowPaymentModal(false);
       setPaymentForm({ amount: '', paymentMethod: 'cash', remarks: '' });
@@ -384,7 +382,7 @@ export default function StudentManagement() {
   const openDetail = (student) => { setSelectedStudent(student); setShowDetailModal(true); };
 
   const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
-  const getDocUrl = (s, field) => s[field] && s[field].fileUrl ? `http://localhost:5000${s[field].fileUrl}` : null;
+  const getDocUrl = (s, field) => s[field] && s[field].fileUrl ? `${BASE_URL}${s[field].fileUrl}?token=${localStorage.getItem('token')}` : null;
   const isImage = (url) => url && /\.(jpg|jpeg|png)$/i.test(url);
 
   // Mini thumbnail component

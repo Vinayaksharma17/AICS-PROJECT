@@ -5,6 +5,7 @@ const PER_PAGE = 8;
 
 export default function FeesOverview() {
   const [students, setStudents] = useState([]);
+  const [summary, setSummary] = useState({ totalFees: 0, totalCollected: 0, totalPending: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -12,17 +13,21 @@ export default function FeesOverview() {
 
   const fetchStudents = useCallback(async () => {
     try {
-      const { data } = await api.get('/students');
-      setStudents(data);
+      const [studentsRes, summaryRes] = await Promise.all([
+        api.get('/students'),
+        api.get('/admin/fees-overview').catch(() => ({ data: {} }))
+      ]);
+      setStudents(studentsRes.data);
+      if (summaryRes.data.totalFees !== undefined) setSummary(summaryRes.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
-  const totalFees = students.reduce((s, st) => s + (st.finalFees || st.totalFees || 0), 0);
-  const totalPaid = students.reduce((s, st) => s + (st.paidFees || 0), 0);
-  const totalPending = students.reduce((s, st) => s + (st.pendingFees || 0), 0);
+  const totalFees = summary.totalFees || students.reduce((s, st) => s + (st.finalFees || st.totalFees || 0), 0);
+  const totalPaid = summary.totalCollected || students.reduce((s, st) => s + (st.paidFees || 0), 0);
+  const totalPending = summary.totalPending || students.reduce((s, st) => s + (st.pendingFees || 0), 0);
 
   const filtered = students.filter(s => {
     const name = `${s.firstName} ${s.fatherName} ${s.lastName}`.toLowerCase();
