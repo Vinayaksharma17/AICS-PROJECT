@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 const connectDB = require('./config/db');
 
 dotenv.config();
@@ -19,11 +20,25 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Security: Serve static files with proper headers
-app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+// Security: Serve uploaded files only to authenticated users.
+// Accepts JWT via Authorization header OR ?token= query param (needed for <img src> tags).
+app.use('/uploads', (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.split(' ')[1]
+    : req.query.token;
+
+  if (!token) return res.status(401).json({ message: 'Not authorized' });
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Not authorized' });
+  }
+}, express.static(path.join(__dirname, '../uploads'), {
   maxAge: '1d',
-  setHeaders: (res, path) => {
-    if (path.endsWith('.pdf')) {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.pdf')) {
       res.set('Content-Type', 'application/pdf');
       res.set('X-Content-Type-Options', 'nosniff');
     }
@@ -35,7 +50,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  // Note: Strict-Transport-Security belongs at the reverse proxy (nginx/caddy), not here
   next();
 });
 
@@ -49,6 +64,9 @@ app.use('/api/enquiries', require('./routes/enquiryRoutes'));
 app.use('/api/discounts', require('./routes/discountRoutes'));
 
 app.get('/', (req, res) => res.json({ message: 'Course Institute Management API v2.0 - Secure' }));
+
+// 404 handler for unknown routes
+app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 
 // Global error handler
 app.use((err, req, res, next) => {
