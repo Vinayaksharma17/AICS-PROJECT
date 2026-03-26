@@ -64,11 +64,6 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: 'var(--gray-500)' }}>
-          <div style={{ fontWeight: 600, marginBottom: '0.4rem', color: 'var(--gray-600)' }}>Demo Credentials:</div>
-          <div>Admin: admin@institute.com / admin123</div>
-          <div>Staff: staff@example.com / staff123</div>
-        </div>
       </div>
     </div>
   );

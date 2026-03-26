@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
+import Setup from './pages/Setup';
 import AdminLayout from './components/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import StudentManagement from './pages/admin/StudentManagement';
@@ -24,12 +25,20 @@ const ProtectedRoute = ({ children, roles }) => {
 };
 
 const AppRoutes = () => {
-  const { user } = useAuth();
+  const { user, adminExists, setupChecked } = useAuth();
+
+  if (!setupChecked) return null;
 
   return (
     <Routes>
+      <Route path="/setup" element={
+        adminExists ? <Navigate to="/" replace /> : <Setup />
+      } />
+
       <Route path="/" element={
-        user ? <Navigate to={user.role === 'admin' ? '/admin' : '/staff'} replace /> : <Login />
+        user
+          ? <Navigate to={user.role === 'admin' ? '/admin' : '/staff'} replace />
+          : adminExists ? <Login /> : <Navigate to="/setup" replace />
       } />
 
       {/* Admin Routes */}

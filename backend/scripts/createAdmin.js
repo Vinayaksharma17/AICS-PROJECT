@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const createAdmin = async () => {
   try {
+    console.log(process.env.MONGO_URI)
     await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB');
 

@@ -1,6 +1,52 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
+// @desc    Check if initial admin setup is needed
+// @route   GET /api/auth/setup-status
+// @access  Public
+exports.getSetupStatus = async (req, res) => {
+  try {
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    res.json({ adminExists: adminCount > 0 });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Create the first admin account (one-time setup)
+// @route   POST /api/auth/setup
+// @access  Public (blocked once an admin exists)
+exports.setupAdmin = async (req, res) => {
+  try {
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    if (adminCount > 0) {
+      return res.status(403).json({ message: 'Setup already completed' });
+    }
+
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const admin = await User.create({ name, email, password, role: 'admin' });
+    res.status(201).json({
+      _id: admin._id,
+      name: admin.name,
+      email: admin.email,
+      role: admin.role,
+      token: generateToken(admin._id)
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Email already in use' });
+    }
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
