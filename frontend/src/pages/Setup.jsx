@@ -29,7 +29,8 @@ export default function Setup() {
       storeAuth(data);
       navigate('/admin', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Setup failed. Please try again.');
+      const msg = err.response?.data?.message || 'Setup failed. Please try again.';
+      setError(msg === 'Setup already completed' ? 'An admin account already exists.' : msg);
     } finally {
       setLoading(false);
     }
@@ -47,6 +48,17 @@ export default function Setup() {
         {error && (
           <div className="alert alert-error" style={{ marginBottom: '1.25rem' }}>
             <span>⚠️</span> {error}
+            {error === 'An admin account already exists.' && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-full"
+                  onClick={() => navigate('/', { replace: true })}
+                >
+                  Go to Login
+                </button>
+              </div>
+            )}
           </div>
         )}
 

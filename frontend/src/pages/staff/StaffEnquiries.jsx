@@ -101,7 +101,7 @@ export default function StaffEnquiries() {
 
   /* ── Admit → redirect to student admission ──────────────────────────────── */
   const handleAdmit = async (enquiry) => {
-    try { await api.put(`/enquiries/${enquiry._id}`, { status: 'converted' }); } catch (e) {}
+    try { await api.put(`/enquiries/${enquiry._id}`, { status: 'converted' }); } catch (e) { console.error('Failed to mark enquiry as converted:', e); }
     sessionStorage.setItem('convertEnquiry', JSON.stringify(enquiry));
     navigate('/staff/students');
   };

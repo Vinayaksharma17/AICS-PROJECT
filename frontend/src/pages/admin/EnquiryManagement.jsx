@@ -98,7 +98,7 @@ export default function EnquiryManagement() {
 
   const convertToAdmission = async (enquiry) => {
     // Mark enquiry as converted
-    try { await api.put(`/enquiries/${enquiry._id}`, { status: 'converted' }); } catch (e) {}
+    try { await api.put(`/enquiries/${enquiry._id}`, { status: 'converted' }); } catch (e) { console.error('Failed to mark enquiry as converted:', e); }
     // Store pre-fill data and navigate to student admission
     sessionStorage.setItem('convertEnquiry', JSON.stringify(enquiry));
     navigate('/admin/students');
