@@ -58,6 +58,7 @@ export default function StaffLayout() {
             </div>
           </div>
           <button className="btn-logout" onClick={handleLogout}>🚪 Sign Out</button>
+          <p className='company-text'>Developed by Neuronix Technology</p>
         </div>
       </aside>
 
