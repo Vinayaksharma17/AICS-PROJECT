@@ -5,6 +5,7 @@ const BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
 
 const PER_PAGE = 8;
 const PAYMENT_METHODS = ['cash', 'upi'];
+const MAX_DOC_SIZE = 1 * 1024 * 1024; // 1 MB
 
 const emptyForm = {
   firstName: '', fatherName: '', lastName: '',
@@ -260,6 +261,7 @@ export default function StaffStudents() {
 
   const handleDocChange = (field, file) => {
     if (!file) return;
+    if (file.size > MAX_DOC_SIZE) { showAlert('error', 'File size must be 1 MB or less.'); return; }
     setDocs(d => ({ ...d, [field]: file }));
     if (file.type.startsWith('image/')) {
       const r = new FileReader(); r.onload = ev => setPreviews(p => ({ ...p, [field]: ev.target.result })); r.readAsDataURL(file);
@@ -314,6 +316,7 @@ export default function StaffStudents() {
 
   const handleUploadDocChange = (field, file) => {
     if (!file) return;
+    if (file.size > MAX_DOC_SIZE) { showAlert('error', 'File size must be 1 MB or less.'); return; }
     setUploadDocModal(d => ({ ...d, [field]: file }));
     if (file.type.startsWith('image/')) {
       const r = new FileReader(); r.onload = ev => setUploadDocPreviews(p => ({ ...p, [field]: ev.target.result })); r.readAsDataURL(file);
@@ -536,9 +539,9 @@ export default function StaffStudents() {
                   </div>
 
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Document Uploads</div>
-                  <DocFieldRow field="studentPhoto"    label="🖼️ Student Photo"          hint="Clear passport-size photo (JPG, PNG)"            accept="image/jpeg,image/jpg,image/png" preview={previews.studentPhoto}    docFile={docs.studentPhoto}    onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
-                  <DocFieldRow field="qualificationDoc" label="📜 Qualification Document" hint="Mark sheet, degree or certificate (JPG, PNG, PDF)" accept=".pdf,.jpg,.jpeg,.png"           preview={previews.qualificationDoc} docFile={docs.qualificationDoc} onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
-                  <DocFieldRow field="aadharCard"       label="🪪 Aadhar Card"            hint="Front side of Aadhar card (JPG, PNG)"             accept="image/jpeg,image/jpg,image/png" preview={previews.aadharCard}      docFile={docs.aadharCard}      onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
+                  <DocFieldRow field="studentPhoto"    label="🖼️ Student Photo"          hint="Clear passport-size photo (JPG, PNG) · Max 1 MB"            accept="image/jpeg,image/jpg,image/png" preview={previews.studentPhoto}    docFile={docs.studentPhoto}    onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
+                  <DocFieldRow field="qualificationDoc" label="📜 Qualification Document" hint="Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB" accept=".pdf,.jpg,.jpeg,.png"           preview={previews.qualificationDoc} docFile={docs.qualificationDoc} onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
+                  <DocFieldRow field="aadharCard"       label="🪪 Aadhar Card"            hint="Front side of Aadhar card (JPG, PNG) · Max 1 MB"             accept="image/jpeg,image/jpg,image/png" preview={previews.aadharCard}      docFile={docs.aadharCard}      onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
                 </div>
               </div>
               <div className="modal-footer">
@@ -650,9 +653,9 @@ export default function StaffStudents() {
                   <div style={{ fontWeight: 600 }}>{selectedStudent.firstName} {selectedStudent.fatherName} {selectedStudent.lastName}</div>
                 </div>
                 {[
-                  { field:'studentPhoto',    label:'🖼️ Student Photo',          hint:'JPG, PNG (image only)', accept:'image/jpeg,image/jpg,image/png', existing:getDocUrl(selectedStudent,'studentPhoto'),    cameraOk: true  },
-                  { field:'qualificationDoc', label:'📜 Qualification Document', hint:'JPG, PNG, PDF',           accept:'.pdf,.jpg,.jpeg,.png',           existing:getDocUrl(selectedStudent,'qualificationDoc'), cameraOk: true  },
-                  { field:'aadharCard',       label:'🪪 Aadhar Card',            hint:'JPG, PNG (image only)', accept:'image/jpeg,image/jpg,image/png', existing:getDocUrl(selectedStudent,'aadharCard'),       cameraOk: true  }
+                  { field:'studentPhoto',    label:'🖼️ Student Photo',          hint:'JPG, PNG (image only) · Max 1 MB', accept:'image/jpeg,image/jpg,image/png', existing:getDocUrl(selectedStudent,'studentPhoto'),    cameraOk: true  },
+                  { field:'qualificationDoc', label:'📜 Qualification Document', hint:'JPG, PNG, PDF · Max 1 MB',           accept:'.pdf,.jpg,.jpeg,.png',           existing:getDocUrl(selectedStudent,'qualificationDoc'), cameraOk: true  },
+                  { field:'aadharCard',       label:'🪪 Aadhar Card',            hint:'JPG, PNG (image only) · Max 1 MB', accept:'image/jpeg,image/jpg,image/png', existing:getDocUrl(selectedStudent,'aadharCard'),       cameraOk: true  }
                 ].map(({ field, label, hint, accept, existing, cameraOk }) => (
                   <div className="form-group" key={field} style={{ marginBottom: '1rem' }}>
                     <label className="form-label">{label}</label>

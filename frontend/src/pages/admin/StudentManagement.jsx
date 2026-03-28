@@ -4,6 +4,7 @@ import api from '../../utils/api';
 const BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
 const PER_PAGE = 8;
 const PAYMENT_METHODS = ['cash', 'upi'];
+const MAX_DOC_SIZE = 1 * 1024 * 1024; // 1 MB
 
 /* ── Live Camera Modal ───────────────────────────────────────────────────── */
 function CameraModal({ label, onCapture, onClose }) {
@@ -268,6 +269,7 @@ export default function StudentManagement() {
   // Handle file input change for named doc fields with preview
   const handleDocChange = (field, file) => {
     if (!file) return;
+    if (file.size > MAX_DOC_SIZE) { showAlert('error', 'File size must be 1 MB or less.'); return; }
     setDocs(d => ({...d, [field]: file}));
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -347,6 +349,7 @@ export default function StudentManagement() {
   // Handle document upload modal file change
   const handleUploadDocChange = (field, file) => {
     if (!file) return;
+    if (file.size > MAX_DOC_SIZE) { showAlert('error', 'File size must be 1 MB or less.'); return; }
     setUploadDocModal(d => ({...d, [field]: file}));
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -676,9 +679,9 @@ export default function StudentManagement() {
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Document Uploads</div>
 
                   {[
-                    { field: 'studentPhoto',    label: '🖼️ Student Photo',          hint: 'Clear passport-size photo (JPG, PNG)',            accept: 'image/jpeg,image/jpg,image/png',  cameraOk: true  },
-                    { field: 'qualificationDoc', label: '📜 Qualification Document', hint: 'Mark sheet, degree or certificate (JPG, PNG, PDF)', accept: '.pdf,.jpg,.jpeg,.png',            cameraOk: true  },
-                    { field: 'aadharCard',       label: '🪪 Aadhar Card',            hint: 'Front side of Aadhar card (JPG, PNG)',             accept: 'image/jpeg,image/jpg,image/png',  cameraOk: true  }
+                    { field: 'studentPhoto',    label: '🖼️ Student Photo',          hint: 'Clear passport-size photo (JPG, PNG) · Max 1 MB',            accept: 'image/jpeg,image/jpg,image/png',  cameraOk: true  },
+                    { field: 'qualificationDoc', label: '📜 Qualification Document', hint: 'Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB', accept: '.pdf,.jpg,.jpeg,.png',            cameraOk: true  },
+                    { field: 'aadharCard',       label: '🪪 Aadhar Card',            hint: 'Front side of Aadhar card (JPG, PNG) · Max 1 MB',             accept: 'image/jpeg,image/jpg,image/png',  cameraOk: true  }
                   ].map(({ field, label, hint, accept, cameraOk }) => (
                     <div className="form-group" key={field}>
                       <label className="form-label">{label}</label>
@@ -879,9 +882,9 @@ export default function StudentManagement() {
                 </div>
 
                 {[
-                  { field: 'studentPhoto',    label: '🖼️ Student Photo',          hint: 'JPG, PNG (image only)', accept: 'image/jpeg,image/jpg,image/png', existing: getDocUrl(selectedStudent, 'studentPhoto'),    cameraOk: true  },
-                  { field: 'qualificationDoc', label: '📜 Qualification Document', hint: 'JPG, PNG, PDF',           accept: '.pdf,.jpg,.jpeg,.png',           existing: getDocUrl(selectedStudent, 'qualificationDoc'), cameraOk: true  },
-                  { field: 'aadharCard',       label: '🪪 Aadhar Card',            hint: 'JPG, PNG (image only)', accept: 'image/jpeg,image/jpg,image/png', existing: getDocUrl(selectedStudent, 'aadharCard'),       cameraOk: true  }
+                  { field: 'studentPhoto',    label: '🖼️ Student Photo',          hint: 'JPG, PNG (image only) · Max 1 MB', accept: 'image/jpeg,image/jpg,image/png', existing: getDocUrl(selectedStudent, 'studentPhoto'),    cameraOk: true  },
+                  { field: 'qualificationDoc', label: '📜 Qualification Document', hint: 'JPG, PNG, PDF · Max 1 MB',           accept: '.pdf,.jpg,.jpeg,.png',           existing: getDocUrl(selectedStudent, 'qualificationDoc'), cameraOk: true  },
+                  { field: 'aadharCard',       label: '🪪 Aadhar Card',            hint: 'JPG, PNG (image only) · Max 1 MB', accept: 'image/jpeg,image/jpg,image/png', existing: getDocUrl(selectedStudent, 'aadharCard'),       cameraOk: true  }
                 ].map(({ field, label, hint, accept, existing, cameraOk }) => (
                   <div className="form-group" key={field} style={{ marginBottom: '1rem' }}>
                     <label className="form-label">{label}</label>
