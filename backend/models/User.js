@@ -47,4 +47,11 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
+// Static method to update password (bypasses pre-save hook to avoid double-hashing)
+userSchema.statics.updatePassword = async function(userId, newPassword) {
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+  return await this.findByIdAndUpdate(userId, { password: hashedPassword });
+};
+
 module.exports = mongoose.model('User', userSchema);

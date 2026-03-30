@@ -72,6 +72,36 @@ exports.removeStaff = async (req, res) => {
   }
 };
 
+// @desc    Update staff password
+// @route   PUT /api/admin/staff/:id/password
+// @access  Private/Admin
+exports.updateStaffPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const staff = await User.findById(req.params.id);
+
+    if (!staff) {
+      return res.status(404).json({ message: 'Staff member not found' });
+    }
+
+    if (staff.role !== 'staff') {
+      return res.status(400).json({ message: 'User is not a staff member' });
+    }
+
+    // Use static method to update password (properly hashes without double-hashing)
+    await User.updatePassword(req.params.id, password);
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Get fees overview
 // @route   GET /api/admin/fees-overview
 // @access  Private/Admin
