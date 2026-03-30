@@ -15,7 +15,7 @@ counterSchema.statics.getNextInvoiceNumber = async function () {
     { $inc: { sequence: 1 } },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   )
-  return `${y}AICS${String(counter.sequence).padStart(3, '0')}`
+  return `${y}AICES${String(counter.sequence).padStart(3, '0')}`
 }
 
 // Certificate: yyAICES001  e.g. 26AICES001
