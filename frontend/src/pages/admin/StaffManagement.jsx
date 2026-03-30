@@ -7,6 +7,12 @@ export default function StaffManagement() {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [passwordData, setPasswordData] = useState({ password: '', confirmPassword: '' });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -56,6 +62,36 @@ export default function StaffManagement() {
     } catch (err) { showAlert('error', 'Failed to remove'); }
   };
 
+  const openPasswordModal = (staffMember) => {
+    setSelectedStaff(staffMember);
+    setPasswordData({ password: '', confirmPassword: '' });
+    setPasswordErrors({});
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    setShowPasswordModal(true);
+  };
+
+  const validatePassword = () => {
+    const e = {};
+    if (!passwordData.password || passwordData.password.length < 6) e.password = 'Password must be at least 6 characters';
+    if (passwordData.password !== passwordData.confirmPassword) e.confirmPassword = 'Passwords do not match';
+    setPasswordErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handlePasswordUpdate = async (e) => {
+    e.preventDefault();
+    if (!validatePassword()) return;
+    setSubmitting(true);
+    try {
+      await api.put(`/admin/staff/${selectedStaff._id}/password`, { password: passwordData.password });
+      showAlert('success', 'Password updated successfully!');
+      setShowPasswordModal(false);
+      setSelectedStaff(null);
+    } catch (err) { showAlert('error', err.response?.data?.message || 'Failed to update password'); }
+    finally { setSubmitting(false); }
+  };
+
   return (
     <div>
       {alert && <div className={`alert alert-${alert.type}`} style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 9999, maxWidth: '380px' }}>{alert.type==='success'?'✅':'❌'} {alert.message}</div>}
@@ -96,6 +132,7 @@ export default function StaffManagement() {
                         <td data-label="Joined">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN') : '-'}</td>
                         <td data-label="Status"><span className={`badge ${s.isActive !== false ? 'badge-success' : 'badge-gray'}`}>{s.isActive !== false ? '✅ Active' : '⛔ Inactive'}</span></td>
                         <td className="td-actions" data-label="Actions">
+                          <button className="btn btn-sm btn-outline" onClick={() => openPasswordModal(s)} title="Change Password">✏️</button>
                           <button className="btn btn-sm btn-danger" onClick={() => handleRemove(s._id)}>Remove</button>
                         </td>
                       </tr>
@@ -119,7 +156,7 @@ export default function StaffManagement() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">Full Name <span className="required">*</span></label>
-                    <input className={`form-input ${errors.name?'error':''}`} placeholder="Staff member name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                    <input className={`form-input ${errors.name?'error':''}`} placeholder="Add Centre name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
                     {errors.name && <span className="form-error">{errors.name}</span>}
                   </div>
                   <div className="form-group">
@@ -137,6 +174,47 @@ export default function StaffManagement() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? '...' : '✅ Add Centre'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showPasswordModal && selectedStaff && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowPasswordModal(false)}>
+          <div className="modal modal-sm">
+            <div className="modal-header">
+              <h3 className="modal-title">🔑 Change Password</h3>
+              <button className="modal-close" onClick={() => setShowPasswordModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handlePasswordUpdate}>
+              <div className="modal-body">
+                <div style={{ padding: '0.875rem', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)', marginBottom: '1rem' }}>
+                  <div style={{ fontWeight: 600 }}>{selectedStaff.name}</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--gray-500)' }}>{selectedStaff.email}</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">New Password <span className="required">*</span></label>
+                    <div style={{ position: 'relative' }}>
+                      <input type={showPassword ? 'text' : 'password'} className={`form-input ${passwordErrors.password?'error':''}`} placeholder="Min 6 characters" value={passwordData.password} onChange={e => setPasswordData({...passwordData, password: e.target.value})} style={{ paddingRight: '2.5rem' }} />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '0.25rem' }}>{showPassword ? '🙈' : '👁️'}</button>
+                    </div>
+                    {passwordErrors.password && <span className="form-error">{passwordErrors.password}</span>}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Confirm Password <span className="required">*</span></label>
+                    <div style={{ position: 'relative' }}>
+                      <input type={showConfirmPassword ? 'text' : 'password'} className={`form-input ${passwordErrors.confirmPassword?'error':''}`} placeholder="Re-enter new password" value={passwordData.confirmPassword} onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})} style={{ paddingRight: '2.5rem' }} />
+                      <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '0.25rem' }}>{showConfirmPassword ? '🙈' : '👁️'}</button>
+                    </div>
+                    {passwordErrors.confirmPassword && <span className="form-error">{passwordErrors.confirmPassword}</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setShowPasswordModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? '...' : '✅ Update Password'}</button>
               </div>
             </form>
           </div>
