@@ -130,6 +130,11 @@ export default function StaffStudents() {
   const [showPaymentModal,  setShowPaymentModal]  = useState(false);
   const [showDetailModal,   setShowDetailModal]   = useState(false);
   const [showDocModal,      setShowDocModal]      = useState(false);
+  const [showEditModal,     setShowEditModal]     = useState(false);
+  const [editForm,          setEditForm]          = useState(emptyForm);
+  const [editDocs,          setEditDocs]          = useState(emptyDocs);
+  const [editPreviews,      setEditPreviews]      = useState(emptyPreviews);
+  const [editErrors,        setEditErrors]        = useState({});
   const [selectedStudent,   setSelectedStudent]   = useState(null);
   const [form,              setForm]              = useState(emptyForm);
   const [docs,              setDocs]              = useState(emptyDocs);
@@ -341,6 +346,82 @@ export default function StaffStudents() {
   const openDetail    = s => { setSelectedStudent(s); setShowDetailModal(true); };
   const openPayment   = s => { setSelectedStudent(s); setPaymentForm({ amount: '', paymentMethod: 'cash', remarks: '' }); setShowPaymentModal(true); };
   const openDocUpload = s => { setSelectedStudent(s); setUploadDocModal(emptyDocs); setUploadDocPreviews(emptyPreviews); setShowDocModal(true); };
+  const openEdit = (student) => {
+    setSelectedStudent(student);
+    setEditForm({
+      firstName: student.firstName || '',
+      fatherName: student.fatherName || '',
+      lastName: student.lastName || '',
+      phoneNumber: student.phoneNumber || '',
+      email: student.email || '',
+      address: student.address || '',
+      qualification: student.qualification || '',
+      course: typeof student.course === 'object' ? student.course._id : student.course || '',
+      courseDuration: String(student.courseDuration || ''),
+      totalFees: String(student.totalFees || ''),
+      status: student.status || 'active'
+    });
+    setEditDocs(emptyDocs);
+    setEditPreviews(emptyPreviews);
+    setEditErrors({});
+    setShowEditModal(true);
+  };
+
+  const handleEditDocChange = (field, file) => {
+    if (!file) return;
+    if (file.size > MAX_DOC_SIZE) { showAlert('error', 'File size must be 1 MB or less.'); return; }
+    setEditDocs(d => ({ ...d, [field]: file }));
+    if (file.type.startsWith('image/')) {
+      const r = new FileReader(); r.onload = ev => setEditPreviews(p => ({ ...p, [field]: ev.target.result })); r.readAsDataURL(file);
+    } else { setEditPreviews(p => ({ ...p, [field]: 'pdf' })); }
+  };
+
+  const handleEditCourseChange = (courseId) => {
+    const c = courses.find(co => co._id === courseId);
+    setEditForm(f => ({ ...f, course: courseId, totalFees: c ? String(c.fees || c.defaultFees || '') : '', courseDuration: c ? String(c.duration || '') : '' }));
+  };
+
+  const validateEdit = () => {
+    const e = {};
+    if (!editForm.firstName.trim()) e.firstName = 'Required';
+    if (!editForm.fatherName.trim()) e.fatherName = 'Required';
+    if (!editForm.lastName.trim()) e.lastName = 'Required';
+    if (!editForm.phoneNumber.match(/^[0-9]{10}$/)) e.phoneNumber = 'Enter valid 10-digit number';
+    if (!editForm.address.trim()) e.address = 'Required';
+    if (!editForm.qualification.trim()) e.qualification = 'Required';
+    if (!editForm.course) e.course = 'Select a course';
+    if (!editForm.totalFees) e.totalFees = 'Required';
+    setEditErrors(e); return Object.keys(e).length === 0;
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault(); if (!validateEdit()) return;
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append('firstName', editForm.firstName.trim());
+      fd.append('fatherName', editForm.fatherName.trim());
+      fd.append('lastName', editForm.lastName.trim());
+      fd.append('address', editForm.address.trim());
+      fd.append('qualification', editForm.qualification.trim());
+      fd.append('phoneNumber', editForm.phoneNumber.trim());
+      fd.append('email', editForm.email.trim());
+      fd.append('course', editForm.course);
+      fd.append('totalFees', Number(editForm.totalFees));
+      fd.append('courseDuration', Number(editForm.courseDuration) || 3);
+      fd.append('status', editForm.status);
+      if (editDocs.studentPhoto)    fd.append('studentPhoto',    editDocs.studentPhoto);
+      if (editDocs.qualificationDoc) fd.append('qualificationDoc', editDocs.qualificationDoc);
+      if (editDocs.aadharCard)      fd.append('aadharCard',      editDocs.aadharCard);
+
+      await api.put(`/students/${selectedStudent._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      showAlert('success', 'Student updated successfully!');
+      setShowEditModal(false); setShowDetailModal(false);
+      setEditForm(emptyForm); setEditDocs(emptyDocs); setEditPreviews(emptyPreviews);
+      fetchStudents();
+    } catch (err) { showAlert('error', err.response?.data?.message || 'Failed to update student'); }
+    finally { setSubmitting(false); }
+  };
 
   const fmt       = n  => `₹${(n || 0).toLocaleString('en-IN')}`;
   const getDocUrl = (s, field) => s[field]?.fileUrl ? `${BASE_URL}${s[field].fileUrl}?token=${localStorage.getItem('token')}` : null;
@@ -578,7 +659,13 @@ export default function StaffStudents() {
       {showDetailModal && selectedStudent && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowDetailModal(false)}>
           <div className="modal modal-lg">
-            <div className="modal-header"><h3 className="modal-title">👤 Student Details</h3><button className="modal-close" onClick={() => setShowDetailModal(false)}>✕</button></div>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <h3 className="modal-title">👤 Student Details</h3>
+                <button className="btn btn-sm btn-warning" onClick={() => { setShowDetailModal(false); openEdit(selectedStudent); }} style={{ marginLeft: 'auto' }}>✏️ Edit</button>
+              </div>
+              <button className="modal-close" onClick={() => setShowDetailModal(false)}>✕</button>
+            </div>
             <div className="modal-body">
               <div className="form-grid">
                 <div><div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 2 }}>Full Name</div><div style={{ fontWeight: 600 }}>{selectedStudent.firstName} {selectedStudent.fatherName} {selectedStudent.lastName}</div></div>
@@ -689,6 +776,77 @@ export default function StaffStudents() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-outline" onClick={() => setShowDocModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={submitting||(!uploadDocModal.studentPhoto&&!uploadDocModal.qualificationDoc&&!uploadDocModal.aadharCard)}>{submitting?'⏳ Uploading...':'📤 Upload Documents'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT STUDENT MODAL ───────────────────────────────────────────── */}
+      {showEditModal && selectedStudent && (
+        <div className="modal-overlay">
+          <div className="modal modal-lg">
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ Edit Student</h3>
+              <button className="modal-close" onClick={() => setShowEditModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="modal-body">
+                <div className="form-grid">
+                  <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Personal Information</div>
+                  <div className="form-group"><label className="form-label">First Name <span className="required">*</span></label><input className={`form-input ${editErrors.firstName?'error':''}`} placeholder="e.g. Rahul" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />{editErrors.firstName && <span className="form-error">{editErrors.firstName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Father's Name <span className="required">*</span></label><input className={`form-input ${editErrors.fatherName?'error':''}`} placeholder="e.g. Suresh" value={editForm.fatherName} onChange={e => setEditForm({...editForm, fatherName: e.target.value})} />{editErrors.fatherName && <span className="form-error">{editErrors.fatherName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Surname <span className="required">*</span></label><input className={`form-input ${editErrors.lastName?'error':''}`} placeholder="e.g. Kumar" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} />{editErrors.lastName && <span className="form-error">{editErrors.lastName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Mobile <span className="required">*</span></label><input className={`form-input ${editErrors.phoneNumber?'error':''}`} placeholder="10-digit" maxLength={10} value={editForm.phoneNumber} onChange={e => setEditForm({...editForm, phoneNumber: e.target.value.replace(/\D/g,'')})} />{editErrors.phoneNumber && <span className="form-error">{editErrors.phoneNumber}</span>}</div>
+                  <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" placeholder="Optional" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} /></div>
+                  <div className="form-group"><label className="form-label">Qualification <span className="required">*</span></label><input className={`form-input ${editErrors.qualification?'error':''}`} placeholder="e.g. B.Tech CSE" value={editForm.qualification} onChange={e => setEditForm({...editForm, qualification: e.target.value.replace(/[^a-zA-Z0-9 .]/g,'')})} />{editErrors.qualification && <span className="form-error">{editErrors.qualification}</span>}</div>
+                  <div className="form-group full-width"><label className="form-label">Address <span className="required">*</span></label><textarea className={`form-textarea ${editErrors.address?'error':''}`} placeholder="Full address" rows={2} value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} />{editErrors.address && <span className="form-error">{editErrors.address}</span>}</div>
+
+                  <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Course & Status</div>
+                  <div className="form-group"><label className="form-label">Course <span className="required">*</span></label><select className={`form-select ${editErrors.course?'error':''}`} value={editForm.course} onChange={e => handleEditCourseChange(e.target.value)}><option value="">Select Course</option>{courses.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}</select>{editErrors.course && <span className="form-error">{editErrors.course}</span>}</div>
+                  <div className="form-group"><label className="form-label">Duration (months)</label><input type="number" className="form-input" placeholder="e.g. 6" value={editForm.courseDuration} onChange={e => setEditForm({...editForm, courseDuration: e.target.value})} /></div>
+                  <div className="form-group"><label className="form-label">Course Fees (₹) <span className="required">*</span></label><input type="number" className={`form-input ${editErrors.totalFees?'error':''}`} placeholder="Total fees" value={editForm.totalFees} onChange={e => setEditForm({...editForm, totalFees: e.target.value})} />{editErrors.totalFees && <span className="form-error">{editErrors.totalFees}</span>}</div>
+                  <div className="form-group"><label className="form-label">Status</label><select className="form-select" value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+
+                  <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Document Uploads</div>
+                  {[
+                    { field:'studentPhoto',    label:'🖼️ Student Photo',          hint:'Clear passport-size photo (JPG, PNG) · Max 1 MB',            accept:'image/jpeg,image/jpg,image/png',  existingUrl:getDocUrl(selectedStudent,'studentPhoto'),    cameraOk:true  },
+                    { field:'qualificationDoc', label:'📜 Qualification Document', hint:'Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB', accept:'.pdf,.jpg,.jpeg,.png',           existingUrl:getDocUrl(selectedStudent,'qualificationDoc'), cameraOk:true  },
+                    { field:'aadharCard',       label:'🪪 Aadhar Card',            hint:'Front side of Aadhar card (JPG, PNG) · Max 1 MB',             accept:'image/jpeg,image/jpg,image/png',  existingUrl:getDocUrl(selectedStudent,'aadharCard'),       cameraOk:true  }
+                  ].map(({ field, label, hint, accept, existingUrl, cameraOk }) => (
+                    <div className="form-group" key={field}>
+                      <label className="form-label">{label}</label>
+                      {existingUrl && !editPreviews[field] && (
+                        <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {isImage(existingUrl) ? <img src={existingUrl} alt={label} style={{ width:60,height:60,objectFit:'cover',borderRadius:4,border:'2px solid var(--success)' }} /> : <a href={existingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:'1.5rem' }}>📄</a>}
+                          <span style={{ fontSize:'0.75rem', color:'var(--success)' }}>Current file</span>
+                        </div>
+                      )}
+                      <div style={{ display:'flex',gap:'0.5rem',marginBottom:'0.25rem',flexWrap:'wrap' }}>
+                        <label style={{ flex:'1 1 48%',cursor:'pointer',padding:'0.6rem 1rem',border:'1px solid var(--gray-300)',borderRadius:'var(--radius-sm)',background:'#fff',fontSize:'0.9rem',display:'flex',alignItems:'center',justifyContent:'center',gap:'0.5rem',minHeight:'44px' }}>
+                          📁 Choose File<input type="file" style={{display:'none'}} accept={accept} onChange={e => handleEditDocChange(field, e.target.files[0])} />
+                        </label>
+                        {cameraOk && (
+                          <button type="button"
+                            onClick={() => setCameraField({ field, label, handler: handleEditDocChange })}
+                            style={{ flex:'1 1 48%',cursor:'pointer',padding:'0.6rem 1rem',border:'1px solid var(--primary)',borderRadius:'var(--radius-sm)',background:'var(--primary-light,#eff6ff)',fontSize:'0.9rem',display:'flex',alignItems:'center',justifyContent:'center',gap:'0.5rem',color:'var(--primary)',fontWeight:600,minHeight:'44px' }}>
+                            📷 Camera
+                          </button>
+                        )}
+                      </div>
+                      <span className="form-hint">{hint}</span>
+                      {editPreviews[field] && (
+                        <div style={{ marginTop:'0.5rem' }}>
+                          {editPreviews[field]==='pdf' ? <div style={{fontSize:'0.8rem',color:'#15803d',fontWeight:600}}>📄 {editDocs[field]?.name}</div> : <img src={editPreviews[field]} alt={label} style={{width:80,height:80,objectFit:'cover',borderRadius:6,border:'2px solid var(--primary)',marginTop:4}} />}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setShowEditModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? '⏳ Saving...' : '💾 Save Changes'}</button>
               </div>
             </form>
           </div>

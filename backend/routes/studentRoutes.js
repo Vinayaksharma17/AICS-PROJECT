@@ -16,7 +16,7 @@ router.route('/')
 
 router.route('/:id')
   .get(adminOrStaff, getStudent)
-  .put(adminOrStaff, updateStudent)
+  .put(adminOrStaff, uploadStudentDocs, updateStudent)
   .delete(adminOnly, deleteStudent);
 
 router.post('/:id/payment', adminOrStaff, addPayment);

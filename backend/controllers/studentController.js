@@ -170,10 +170,27 @@ exports.updateStudent = async (req, res) => {
   try {
     const student = await Student.findById(req.params.id);
     if (!student) return res.status(404).json({ message: 'Student not found' });
+
     const fields = ['firstName','fatherName','lastName','phoneNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted'];
     fields.forEach(f => { if (req.body[f] !== undefined) student[f] = req.body[f]; });
+
+    if (req.files) {
+      const files = req.files;
+      if (files.studentPhoto && files.studentPhoto[0]) {
+        student.studentPhoto = buildDocObj(files.studentPhoto[0]);
+      }
+      if (files.qualificationDoc && files.qualificationDoc[0]) {
+        student.qualificationDoc = buildDocObj(files.qualificationDoc[0]);
+      }
+      if (files.aadharCard && files.aadharCard[0]) {
+        student.aadharCard = buildDocObj(files.aadharCard[0]);
+      }
+    }
+
     const updated = await student.save();
-    const populated = await Student.findById(updated._id).populate('course', 'name duration');
+    const populated = await Student.findById(updated._id)
+      .populate('course', 'name duration fees')
+      .populate('addedBy', 'name');
     res.json(populated);
   } catch (error) {
     res.status(500).json({ message: error.message });
