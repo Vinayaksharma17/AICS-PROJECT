@@ -82,7 +82,7 @@ exports.generateCertificate = async (req, res) => {
     if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true })
 
     let certNum = student.certificateNumber
-    if (!certNum) certNum = await Counter.getNextCertificateNumber()
+    if (!certNum) certNum = await Counter.getNextCertificateNumber(student.enrollmentDate)
 
     const fullName = [student.firstName, student.fatherName, student.lastName]
       .filter(Boolean)

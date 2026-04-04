@@ -8,6 +8,11 @@ services:
     depends_on:
       - aics-backend
     restart: unless-stopped
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend
+          target: /app
 
   aics-backend:
     build: ./backend
@@ -23,6 +28,11 @@ services:
       aics-mongodb:
         condition: service_healthy
     restart: unless-stopped
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend
+          target: /app
 
   aics-mongodb:
     image: mongo:7

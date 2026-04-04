@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const studentSchema = new mongoose.Schema({
   // Name Fields
   firstName: { type: String, required: [true, 'Please add first name'], trim: true },
-  fatherName: { type: String, required: [true, 'Please add father name'], trim: true },
-  lastName:   { type: String, required: [true, 'Please add last name'], trim: true },
+  fatherName: { type: String, trim: true },
+  lastName:   { type: String, trim: true },
 
   // Required Fields
   address:       { type: String, required: [true, 'Please add address'] },

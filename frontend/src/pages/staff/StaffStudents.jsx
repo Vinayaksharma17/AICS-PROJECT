@@ -17,6 +17,122 @@ const emptyForm = {
 const emptyDocs     = { studentPhoto: null, qualificationDoc: null, aadharCard: null };
 const emptyPreviews = { studentPhoto: null, qualificationDoc: null, aadharCard: null };
 
+/* ─── Image Crop Modal ──────────────────────────────────────────────────── */
+function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
+  const imgRef = useRef(null);
+  const CROP_SIZE = 200;
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setImgSize({ width: img.width, height: img.height });
+    img.src = imageSrc;
+  }, [imageSrc]);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - crop.x, y: e.clientY - crop.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const maxX = CROP_SIZE * zoom;
+    const maxY = CROP_SIZE * zoom;
+    const newX = Math.min(0, Math.max(-maxX + CROP_SIZE, e.clientX - dragStart.x));
+    const newY = Math.min(0, Math.max(-maxY + CROP_SIZE, e.clientY - dragStart.y));
+    setCrop({ x: newX, y: newY });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleCrop = () => {
+    const canvas = document.createElement('canvas');
+    const scale = imgSize.width / (CROP_SIZE * zoom);
+    canvas.width = CROP_SIZE;
+    canvas.height = CROP_SIZE;
+    const ctx = canvas.getContext('2d');
+    const sx = (-crop.x) * scale;
+    const sy = (-crop.y) * scale;
+    const sw = CROP_SIZE * scale;
+    const sh = CROP_SIZE * scale;
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, CROP_SIZE, CROP_SIZE);
+      canvas.toBlob(blob => {
+        if (blob) {
+          const file = new File([blob], `cropped_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          onCrop(file);
+        }
+      }, 'image/jpeg', 0.9);
+    };
+    img.src = imageSrc;
+  };
+
+  return (
+    <div className="modal-overlay" style={{ zIndex: 10001 }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 500, width: '95%' }}>
+        <div className="modal-header">
+          <h3 className="modal-title">✂️ Crop Image</h3>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ padding: '1rem' }}>
+          <div style={{ textAlign: 'center', marginBottom: '1rem', color: 'var(--gray-600)', fontSize: '0.85rem' }}>
+            Drag to adjust position • Use slider to zoom
+          </div>
+          <div
+            style={{
+              width: CROP_SIZE, height: CROP_SIZE, margin: '0 auto',
+              overflow: 'hidden', position: 'relative', borderRadius: 8,
+              border: '3px solid var(--primary)', cursor: 'grab',
+              background: '#f0f0f0'
+            }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            <img
+              ref={imgRef}
+              src={imageSrc}
+              alt="Crop preview"
+              draggable={false}
+              style={{
+                position: 'absolute', maxWidth: 'none',
+                width: CROP_SIZE * zoom, height: CROP_SIZE * zoom,
+                left: crop.x, top: crop.y,
+                transform: 'translate(0, 0)',
+                pointerEvents: 'none'
+              }}
+            />
+            <div style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.3) 100%)'
+            }} />
+          </div>
+          <div style={{ marginTop: '1rem' }}>
+            <label style={{ fontSize: '0.85rem', color: 'var(--gray-600)', marginBottom: '0.5rem', display: 'block' }}>
+              Zoom: {Math.round(zoom * 100)}%
+            </label>
+            <input
+              type="range" min="1" max="3" step="0.1" value={zoom}
+              onChange={e => setZoom(parseFloat(e.target.value))}
+              style={{ width: '100%' }}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleCrop}>✅ Apply Crop</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Live Camera Modal ──────────────────────────────────────────────────── */
 function CameraModal({ label, onCapture, onClose }) {
   const videoRef  = useRef(null);
@@ -89,7 +205,7 @@ function CameraModal({ label, onCapture, onClose }) {
 
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 /* ─── Reusable camera-aware doc field (module-level to avoid re-mount) ─────── */
-function DocFieldRow({ field, label, hint, accept, preview, docFile, onChange, cameraOk = true, onCamera }) {
+function DocFieldRow({ field, label, hint, accept, preview, docFile, onChange, cameraOk = true, onCamera, onDelete }) {
   return (
     <div className="form-group" key={field}>
       <label className="form-label">{label}</label>
@@ -108,13 +224,16 @@ function DocFieldRow({ field, label, hint, accept, preview, docFile, onChange, c
       </div>
       <span className="form-hint">{hint}</span>
       {preview && (
-        <div style={{ marginTop: '0.5rem' }}>
+        <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {preview === 'pdf'
             ? <div style={{ padding: '0.5rem', background: 'var(--success-light)', borderRadius: 4, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.8rem' }}>
                 <span>📄</span><span style={{ color: '#15803d', fontWeight: 600 }}>{docFile?.name}</span>
               </div>
-            : <img src={preview} alt={label} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '2px solid var(--primary)', marginTop: 4 }} />
+            : <img src={preview} alt={label} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '2px solid var(--primary)' }} />
           }
+          {onDelete && (
+            <button type="button" onClick={() => onDelete(field)} style={{ padding: '0.4rem 0.6rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>🗑️ Delete</button>
+          )}
         </div>
       )}
     </div>
@@ -151,6 +270,8 @@ export default function StaffStudents() {
   const [alert,             setAlert]             = useState(null);
   const [availableInst,     setAvailableInst]     = useState([1, 2, 3, 4, 6, 12]);
   const [cameraField,       setCameraField]       = useState(null);
+  const [cropModal,         setCropModal]          = useState(null);
+  const [editCropModal,     setEditCropModal]      = useState(null);
   const [uploadDocModal,    setUploadDocModal]    = useState(emptyDocs);
   const [uploadDocPreviews, setUploadDocPreviews] = useState(emptyPreviews);
 
@@ -254,8 +375,8 @@ export default function StaffStudents() {
   const validate = () => {
     const e = {};
     if (!form.firstName.trim()) e.firstName = 'Required';
-    if (!form.fatherName.trim()) e.fatherName = 'Required';
-    if (!form.lastName.trim()) e.lastName = 'Required';
+    // if (!form.fatherName.trim()) e.fatherName = 'Required';
+    // if (!form.lastName.trim()) e.lastName = 'Required';
     if (!form.phoneNumber.match(/^[0-9]{10}$/)) e.phoneNumber = 'Enter valid 10-digit number';
     if (!form.address.trim()) e.address = 'Required';
     if (!form.qualification.trim()) e.qualification = 'Required';
@@ -267,10 +388,27 @@ export default function StaffStudents() {
   const handleDocChange = (field, file) => {
     if (!file) return;
     if (file.size > MAX_DOC_SIZE) { showAlert('error', 'File size must be 1 MB or less.'); return; }
-    setDocs(d => ({ ...d, [field]: file }));
     if (file.type.startsWith('image/')) {
-      const r = new FileReader(); r.onload = ev => setPreviews(p => ({ ...p, [field]: ev.target.result })); r.readAsDataURL(file);
-    } else { setPreviews(p => ({ ...p, [field]: 'pdf' })); }
+      const r = new FileReader();
+      r.onload = ev => setCropModal({ field, imageSrc: ev.target.result });
+      r.readAsDataURL(file);
+    } else {
+      setDocs(d => ({ ...d, [field]: file }));
+      setPreviews(p => ({ ...p, [field]: 'pdf' }));
+    }
+  };
+
+  const handleCropApply = (field, croppedFile) => {
+    setDocs(d => ({ ...d, [field]: croppedFile }));
+    const r = new FileReader();
+    r.onload = ev => setPreviews(p => ({ ...p, [field]: ev.target.result }));
+    r.readAsDataURL(croppedFile);
+    setCropModal(null);
+  };
+
+  const handleDocDelete = (field) => {
+    setDocs(d => ({ ...d, [field]: null }));
+    setPreviews(p => ({ ...p, [field]: null }));
   };
 
   const handleSubmit = async (e) => {
@@ -359,7 +497,8 @@ export default function StaffStudents() {
       course: typeof student.course === 'object' ? student.course._id : student.course || '',
       courseDuration: String(student.courseDuration || ''),
       totalFees: String(student.totalFees || ''),
-      status: student.status || 'active'
+      status: student.status || 'active',
+      admissionDate: student.enrollmentDate ? student.enrollmentDate.split('T')[0] : ''
     });
     setEditDocs(emptyDocs);
     setEditPreviews(emptyPreviews);
@@ -370,10 +509,27 @@ export default function StaffStudents() {
   const handleEditDocChange = (field, file) => {
     if (!file) return;
     if (file.size > MAX_DOC_SIZE) { showAlert('error', 'File size must be 1 MB or less.'); return; }
-    setEditDocs(d => ({ ...d, [field]: file }));
     if (file.type.startsWith('image/')) {
-      const r = new FileReader(); r.onload = ev => setEditPreviews(p => ({ ...p, [field]: ev.target.result })); r.readAsDataURL(file);
-    } else { setEditPreviews(p => ({ ...p, [field]: 'pdf' })); }
+      const r = new FileReader();
+      r.onload = ev => setEditCropModal({ field, imageSrc: ev.target.result });
+      r.readAsDataURL(file);
+    } else {
+      setEditDocs(d => ({ ...d, [field]: file }));
+      setEditPreviews(p => ({ ...p, [field]: 'pdf' }));
+    }
+  };
+
+  const handleEditCropApply = (field, croppedFile) => {
+    setEditDocs(d => ({ ...d, [field]: croppedFile }));
+    const r = new FileReader();
+    r.onload = ev => setEditPreviews(p => ({ ...p, [field]: ev.target.result }));
+    r.readAsDataURL(croppedFile);
+    setEditCropModal(null);
+  };
+
+  const handleEditDocDelete = (field) => {
+    setEditDocs(d => ({ ...d, [field]: null }));
+    setEditPreviews(p => ({ ...p, [field]: null }));
   };
 
   const handleEditCourseChange = (courseId) => {
@@ -384,8 +540,8 @@ export default function StaffStudents() {
   const validateEdit = () => {
     const e = {};
     if (!editForm.firstName.trim()) e.firstName = 'Required';
-    if (!editForm.fatherName.trim()) e.fatherName = 'Required';
-    if (!editForm.lastName.trim()) e.lastName = 'Required';
+    // if (!editForm.fatherName.trim()) e.fatherName = 'Required';
+    // if (!editForm.lastName.trim()) e.lastName = 'Required';
     if (!editForm.phoneNumber.match(/^[0-9]{10}$/)) e.phoneNumber = 'Enter valid 10-digit number';
     if (!editForm.address.trim()) e.address = 'Required';
     if (!editForm.qualification.trim()) e.qualification = 'Required';
@@ -409,6 +565,7 @@ export default function StaffStudents() {
       fd.append('course', editForm.course);
       fd.append('totalFees', Number(editForm.totalFees));
       fd.append('courseDuration', Number(editForm.courseDuration) || 3);
+      fd.append('admissionDate', editForm.admissionDate || '');
       fd.append('status', editForm.status);
       if (editDocs.studentPhoto)    fd.append('studentPhoto',    editDocs.studentPhoto);
       if (editDocs.qualificationDoc) fd.append('qualificationDoc', editDocs.qualificationDoc);
@@ -544,8 +701,8 @@ export default function StaffStudents() {
                 <div className="form-grid">
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Personal Information</div>
                   <div className="form-group"><label className="form-label">First Name <span className="required">*</span></label><input className={`form-input ${errors.firstName?'error':''}`} placeholder="e.g. Rahul" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} />{errors.firstName && <span className="form-error">{errors.firstName}</span>}</div>
-                  <div className="form-group"><label className="form-label">Father's Name <span className="required">*</span></label><input className={`form-input ${errors.fatherName?'error':''}`} placeholder="e.g. Suresh" value={form.fatherName} onChange={e => setForm({...form, fatherName: e.target.value})} />{errors.fatherName && <span className="form-error">{errors.fatherName}</span>}</div>
-                  <div className="form-group"><label className="form-label">Surname <span className="required">*</span></label><input className={`form-input ${errors.lastName?'error':''}`} placeholder="e.g. Kumar" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} />{errors.lastName && <span className="form-error">{errors.lastName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Father's Name</label><input className={`form-input ${errors.fatherName?'error':''}`} placeholder="e.g. Suresh" value={form.fatherName} onChange={e => setForm({...form, fatherName: e.target.value})} />{errors.fatherName && <span className="form-error">{errors.fatherName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Surname</label><input className={`form-input ${errors.lastName?'error':''}`} placeholder="e.g. Kumar" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} />{errors.lastName && <span className="form-error">{errors.lastName}</span>}</div>
                   <div className="form-group"><label className="form-label">Mobile <span className="required">*</span></label><input className={`form-input ${errors.phoneNumber?'error':''}`} placeholder="10-digit" maxLength={10} value={form.phoneNumber} onChange={e => setForm({...form, phoneNumber: e.target.value.replace(/\D/g,'')})} />{errors.phoneNumber && <span className="form-error">{errors.phoneNumber}</span>}</div>
                   <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" placeholder="Optional" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
                   <div className="form-group"><label className="form-label">Qualification <span className="required">*</span></label><input className={`form-input ${errors.qualification?'error':''}`} placeholder="e.g. B.Tech CSE" value={form.qualification} onChange={e => setForm({...form, qualification: e.target.value.replace(/[^a-zA-Z0-9 .]/g,'')})} />{errors.qualification && <span className="form-error">{errors.qualification}</span>}</div>
@@ -620,9 +777,9 @@ export default function StaffStudents() {
                   </div>
 
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Document Uploads</div>
-                  <DocFieldRow field="studentPhoto"    label="🖼️ Student Photo"          hint="Clear passport-size photo (JPG, PNG) · Max 1 MB"            accept="image/jpeg,image/jpg,image/png" preview={previews.studentPhoto}    docFile={docs.studentPhoto}    onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
-                  <DocFieldRow field="qualificationDoc" label="📜 Qualification Document" hint="Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB" accept=".pdf,.jpg,.jpeg,.png"           preview={previews.qualificationDoc} docFile={docs.qualificationDoc} onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
-                  <DocFieldRow field="aadharCard"       label="🪪 Aadhar Card"            hint="Front side of Aadhar card (JPG, PNG) · Max 1 MB"             accept="image/jpeg,image/jpg,image/png" preview={previews.aadharCard}      docFile={docs.aadharCard}      onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} />
+                  <DocFieldRow field="studentPhoto"    label="🖼️ Student Photo"          hint="Clear passport-size photo (JPG, PNG) · Max 1 MB"            accept="image/jpeg,image/jpg,image/png" preview={previews.studentPhoto}    docFile={docs.studentPhoto}    onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} onDelete={handleDocDelete} />
+                  <DocFieldRow field="qualificationDoc" label="📜 Qualification Document" hint="Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB" accept=".pdf,.jpg,.jpeg,.png"           preview={previews.qualificationDoc} docFile={docs.qualificationDoc} onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} onDelete={handleDocDelete} />
+                  <DocFieldRow field="aadharCard"       label="🪪 Aadhar Card"            hint="Front side of Aadhar card (JPG, PNG) · Max 1 MB"             accept="image/jpeg,image/jpg,image/png" preview={previews.aadharCard}      docFile={docs.aadharCard}      onChange={handleDocChange} cameraOk={true}  onCamera={setCameraField} onDelete={handleDocDelete} />
                 </div>
               </div>
               <div className="modal-footer">
@@ -795,8 +952,8 @@ export default function StaffStudents() {
                 <div className="form-grid">
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Personal Information</div>
                   <div className="form-group"><label className="form-label">First Name <span className="required">*</span></label><input className={`form-input ${editErrors.firstName?'error':''}`} placeholder="e.g. Rahul" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />{editErrors.firstName && <span className="form-error">{editErrors.firstName}</span>}</div>
-                  <div className="form-group"><label className="form-label">Father's Name <span className="required">*</span></label><input className={`form-input ${editErrors.fatherName?'error':''}`} placeholder="e.g. Suresh" value={editForm.fatherName} onChange={e => setEditForm({...editForm, fatherName: e.target.value})} />{editErrors.fatherName && <span className="form-error">{editErrors.fatherName}</span>}</div>
-                  <div className="form-group"><label className="form-label">Surname <span className="required">*</span></label><input className={`form-input ${editErrors.lastName?'error':''}`} placeholder="e.g. Kumar" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} />{editErrors.lastName && <span className="form-error">{editErrors.lastName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Father's Name</label><input className={`form-input ${editErrors.fatherName?'error':''}`} placeholder="e.g. Suresh" value={editForm.fatherName} onChange={e => setEditForm({...editForm, fatherName: e.target.value})} />{editErrors.fatherName && <span className="form-error">{editErrors.fatherName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Surname</label><input className={`form-input ${editErrors.lastName?'error':''}`} placeholder="e.g. Kumar" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} />{editErrors.lastName && <span className="form-error">{editErrors.lastName}</span>}</div>
                   <div className="form-group"><label className="form-label">Mobile <span className="required">*</span></label><input className={`form-input ${editErrors.phoneNumber?'error':''}`} placeholder="10-digit" maxLength={10} value={editForm.phoneNumber} onChange={e => setEditForm({...editForm, phoneNumber: e.target.value.replace(/\D/g,'')})} />{editErrors.phoneNumber && <span className="form-error">{editErrors.phoneNumber}</span>}</div>
                   <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" placeholder="Optional" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} /></div>
                   <div className="form-group"><label className="form-label">Qualification <span className="required">*</span></label><input className={`form-input ${editErrors.qualification?'error':''}`} placeholder="e.g. B.Tech CSE" value={editForm.qualification} onChange={e => setEditForm({...editForm, qualification: e.target.value.replace(/[^a-zA-Z0-9 .]/g,'')})} />{editErrors.qualification && <span className="form-error">{editErrors.qualification}</span>}</div>
@@ -805,6 +962,7 @@ export default function StaffStudents() {
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Course & Status</div>
                   <div className="form-group"><label className="form-label">Course <span className="required">*</span></label><select className={`form-select ${editErrors.course?'error':''}`} value={editForm.course} onChange={e => handleEditCourseChange(e.target.value)}><option value="">Select Course</option>{courses.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}</select>{editErrors.course && <span className="form-error">{editErrors.course}</span>}</div>
                   <div className="form-group"><label className="form-label">Duration (months)</label><input type="number" className="form-input" placeholder="e.g. 6" value={editForm.courseDuration} onChange={e => setEditForm({...editForm, courseDuration: e.target.value})} /></div>
+                  <div className="form-group"><label className="form-label">Admission Date</label><input type="date" className="form-input" value={editForm.admissionDate} onChange={e => setEditForm({...editForm, admissionDate: e.target.value})} /></div>
                   <div className="form-group"><label className="form-label">Course Fees (₹) <span className="required">*</span></label><input type="number" className={`form-input ${editErrors.totalFees?'error':''}`} placeholder="Total fees" value={editForm.totalFees} onChange={e => setEditForm({...editForm, totalFees: e.target.value})} />{editErrors.totalFees && <span className="form-error">{editErrors.totalFees}</span>}</div>
                   <div className="form-group"><label className="form-label">Status</label><select className="form-select" value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
 
@@ -836,8 +994,9 @@ export default function StaffStudents() {
                       </div>
                       <span className="form-hint">{hint}</span>
                       {editPreviews[field] && (
-                        <div style={{ marginTop:'0.5rem' }}>
-                          {editPreviews[field]==='pdf' ? <div style={{fontSize:'0.8rem',color:'#15803d',fontWeight:600}}>📄 {editDocs[field]?.name}</div> : <img src={editPreviews[field]} alt={label} style={{width:80,height:80,objectFit:'cover',borderRadius:6,border:'2px solid var(--primary)',marginTop:4}} />}
+                        <div style={{ marginTop:'0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          {editPreviews[field]==='pdf' ? <div style={{fontSize:'0.8rem',color:'#15803d',fontWeight:600}}>📄 {editDocs[field]?.name}</div> : <img src={editPreviews[field]} alt={label} style={{width:80,height:80,objectFit:'cover',borderRadius:6,border:'2px solid var(--primary)'}} />}
+                          <button type="button" onClick={() => handleEditDocDelete(field)} style={{ padding: '0.4rem 0.6rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>🗑️ Delete</button>
                         </div>
                       )}
                     </div>
@@ -859,6 +1018,26 @@ export default function StaffStudents() {
           label={cameraField.label}
           onCapture={file => { cameraField.handler(cameraField.field, file); setCameraField(null); }}
           onClose={() => setCameraField(null)}
+        />
+      )}
+
+      {/* IMAGE CROP MODAL */}
+      {cropModal && (
+        <ImageCropModal
+          imageSrc={cropModal.imageSrc}
+          fieldName={cropModal.field}
+          onCrop={file => handleCropApply(cropModal.field, file)}
+          onClose={() => setCropModal(null)}
+        />
+      )}
+
+      {/* IMAGE CROP MODAL FOR EDIT */}
+      {editCropModal && (
+        <ImageCropModal
+          imageSrc={editCropModal.imageSrc}
+          fieldName={editCropModal.field}
+          onCrop={file => handleEditCropApply(editCropModal.field, file)}
+          onClose={() => setEditCropModal(null)}
         />
       )}
     </div>

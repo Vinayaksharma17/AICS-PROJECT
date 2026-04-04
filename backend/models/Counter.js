@@ -19,10 +19,11 @@ counterSchema.statics.getNextInvoiceNumber = async function () {
 }
 
 // Certificate: yyAICES001  e.g. 26AICES001
-counterSchema.statics.getNextCertificateNumber = async function () {
+// Accepts optional yearFromDate to use admission date year instead of current year
+counterSchema.statics.getNextCertificateNumber = async function (yearFromDate) {
   const now = new Date()
-  const yy = String(now.getFullYear()).slice(-2)
-  const y = now.getFullYear()
+  const y = yearFromDate ? new Date(yearFromDate).getFullYear() : now.getFullYear()
+  const yy = String(y).slice(-2)
   const counter = await this.findOneAndUpdate(
     { name: 'certificate', year: y },
     { $inc: { sequence: 1 } },

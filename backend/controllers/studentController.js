@@ -23,7 +23,7 @@ exports.addStudent = async (req, res) => {
     const {
       firstName, fatherName, lastName, phoneNumber, email,
       address, qualification, course, totalFees, paidFees,
-      initialPaymentMethod, couponCode, courseDuration, installments
+      initialPaymentMethod, couponCode, courseDuration, admissionDate, installments
     } = req.body;
 
     const existing = await Student.findOne({ phoneNumber });
@@ -85,7 +85,7 @@ exports.addStudent = async (req, res) => {
       pendingFees: Math.max(0, finalFees - initialPayment),
       courseDuration: Number(courseDuration) || 3,
       installments: installmentData,
-      enrollmentDate: new Date(),
+      enrollmentDate: admissionDate ? new Date(admissionDate) : new Date(),
       status: 'active',
       addedBy: req.user._id,
       payments: [],
@@ -173,6 +173,10 @@ exports.updateStudent = async (req, res) => {
 
     const fields = ['firstName','fatherName','lastName','phoneNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted'];
     fields.forEach(f => { if (req.body[f] !== undefined) student[f] = req.body[f]; });
+
+    if (req.body.admissionDate) {
+      student.enrollmentDate = new Date(req.body.admissionDate);
+    }
 
     if (req.files) {
       const files = req.files;
