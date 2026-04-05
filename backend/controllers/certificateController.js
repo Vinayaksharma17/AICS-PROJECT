@@ -82,12 +82,15 @@ exports.generateCertificate = async (req, res) => {
     if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true })
 
     let certNum = student.certificateNumber
-    if (!certNum) certNum = await Counter.getNextCertificateNumber(student.enrollmentDate)
+    if (!certNum)
+      certNum = await Counter.getNextCertificateNumber(student.enrollmentDate)
 
-    const fullName = [student.firstName, student.fatherName, student.lastName]
-      .filter(Boolean)
-      .join(' ')
-      .toUpperCase()
+    // const fullName = student.certificateName ? student.certificateName : [student.firstName, student.lastName].filter(Boolean).join(' ').toUpperCase();
+    const fullName = (
+      student.certificateName ||
+      [student.firstName, student.lastName].filter(Boolean).join(' ') ||
+      ''
+    ).toUpperCase()
 
     const filePath = path.join(
       certsDir,
@@ -441,8 +444,8 @@ exports.generateCertificate = async (req, res) => {
       try {
         const correctedBuffer = await sharp(photoPath)
           .rotate()
-          .resize(600, 800, { fit: 'cover', position: 'centre' })
-          .jpeg({ quality: 95 })
+          .resize(300, 375, { fit: 'cover', position: 'centre', withoutEnlargement: true })
+          .jpeg({ quality: 98 })
           .toBuffer()
         doc.save()
         doc.rect(pX + 1, pY + 1, pW - 2, pH - 2).clip()
@@ -521,11 +524,26 @@ exports.generateCertificate = async (req, res) => {
       doc.font('Helvetica-Bold').fontSize(13).fillColor(DARK)
       // Draw twice with tiny offset to simulate extra-bold weight
       // Centered over the full description zone (col1 → photo edge)
-      doc.text(courseAbbr, col1X, descStartY - 18, { width: descZoneW, align: 'center', lineBreak: false })
-      doc.text(courseAbbr, col1X + 0.3, descStartY - 18, { width: descZoneW, align: 'center', lineBreak: false })
+      doc.text(courseAbbr, col1X, descStartY - 18, {
+        width: descZoneW,
+        align: 'center',
+        lineBreak: false,
+      })
+      doc.text(courseAbbr, col1X + 0.3, descStartY - 18, {
+        width: descZoneW,
+        align: 'center',
+        lineBreak: false,
+      })
       const abbrW = doc.widthOfString(courseAbbr)
       const abbrCenterX = col1X + descZoneW / 2
-      hRule(doc, abbrCenterX - abbrW / 2, descStartY - 6.5, abbrCenterX + abbrW / 2, 0.8, DARK)
+      hRule(
+        doc,
+        abbrCenterX - abbrW / 2,
+        descStartY - 6.5,
+        abbrCenterX + abbrW / 2,
+        0.8,
+        DARK,
+      )
     }
 
     if (descLines.length <= 8) {

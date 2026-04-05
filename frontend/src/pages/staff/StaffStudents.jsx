@@ -8,7 +8,7 @@ const PAYMENT_METHODS = ['cash', 'upi'];
 const MAX_DOC_SIZE = 1 * 1024 * 1024; // 1 MB
 
 const emptyForm = {
-  firstName: '', fatherName: '', lastName: '',
+  firstName: '', fatherName: '', lastName: '', certificateName: '',
   address: '', qualification: '', phoneNumber: '', email: '',
   course: '', couponCode: '', courseDuration: '',
   totalFees: '', initialPayment: '0', initialPaymentMethod: 'cash',
@@ -25,7 +25,9 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const imgRef = useRef(null);
-  const CROP_SIZE = 200;
+  const ASPECT_RATIO = fieldName === 'studentPhoto' ? 3 / 4 : 16 / 9;
+  const OUTPUT_HEIGHT = 1000;
+  const OUTPUT_WIDTH = Math.round(OUTPUT_HEIGHT * ASPECT_RATIO);
 
   useEffect(() => {
     const img = new Image();
@@ -40,10 +42,10 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
 
   const handleMouseMove = (e) => {
     if (!isDragging) return;
-    const maxX = CROP_SIZE * zoom;
-    const maxY = CROP_SIZE * zoom;
-    const newX = Math.min(0, Math.max(-maxX + CROP_SIZE, e.clientX - dragStart.x));
-    const newY = Math.min(0, Math.max(-maxY + CROP_SIZE, e.clientY - dragStart.y));
+    const maxX = OUTPUT_WIDTH * zoom;
+    const maxY = OUTPUT_HEIGHT * zoom;
+    const newX = Math.min(0, Math.max(-maxX + OUTPUT_WIDTH, e.clientX - dragStart.x));
+    const newY = Math.min(0, Math.max(-maxY + OUTPUT_HEIGHT, e.clientY - dragStart.y));
     setCrop({ x: newX, y: newY });
   };
 
@@ -51,23 +53,23 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
 
   const handleCrop = () => {
     const canvas = document.createElement('canvas');
-    const scale = imgSize.width / (CROP_SIZE * zoom);
-    canvas.width = CROP_SIZE;
-    canvas.height = CROP_SIZE;
+    const scale = imgSize.width / (OUTPUT_WIDTH * zoom);
+    canvas.width = OUTPUT_WIDTH;
+    canvas.height = OUTPUT_HEIGHT;
     const ctx = canvas.getContext('2d');
     const sx = (-crop.x) * scale;
     const sy = (-crop.y) * scale;
-    const sw = CROP_SIZE * scale;
-    const sh = CROP_SIZE * scale;
+    const sw = OUTPUT_WIDTH * scale;
+    const sh = OUTPUT_HEIGHT * scale;
     const img = new Image();
     img.onload = () => {
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, CROP_SIZE, CROP_SIZE);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
       canvas.toBlob(blob => {
         if (blob) {
-          const file = new File([blob], `cropped_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          const file = new File([blob], `cropped_${Date.now()}.png`, { type: 'image/png' });
           onCrop(file);
         }
-      }, 'image/jpeg', 0.9);
+      }, 'image/png');
     };
     img.src = imageSrc;
   };
@@ -85,7 +87,7 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
           </div>
           <div
             style={{
-              width: CROP_SIZE, height: CROP_SIZE, margin: '0 auto',
+              width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT, margin: '0 auto',
               overflow: 'hidden', position: 'relative', borderRadius: 8,
               border: '3px solid var(--primary)', cursor: 'grab',
               background: '#f0f0f0'
@@ -102,7 +104,7 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
               draggable={false}
               style={{
                 position: 'absolute', maxWidth: 'none',
-                width: CROP_SIZE * zoom, height: CROP_SIZE * zoom,
+                width: OUTPUT_WIDTH * zoom, height: OUTPUT_HEIGHT * zoom,
                 left: crop.x, top: crop.y,
                 transform: 'translate(0, 0)',
                 pointerEvents: 'none'
@@ -418,7 +420,7 @@ export default function StaffStudents() {
       const installments = buildInstallments();
       const initialPay = Number(form.initialPayment) || 0;
       const fd = new FormData();
-      ['firstName','fatherName','lastName','address','qualification','phoneNumber','email'].forEach(k => fd.append(k, form[k].trim()));
+      ['firstName','fatherName','lastName','certificateName','address','qualification','phoneNumber','email'].forEach(k => fd.append(k, form[k].trim()));
       fd.append('course', form.course);
       fd.append('totalFees', Number(form.totalFees));
       fd.append('paidFees', initialPay);
@@ -490,6 +492,7 @@ export default function StaffStudents() {
       firstName: student.firstName || '',
       fatherName: student.fatherName || '',
       lastName: student.lastName || '',
+      certificateName: student.certificateName || '',
       phoneNumber: student.phoneNumber || '',
       email: student.email || '',
       address: student.address || '',
@@ -558,6 +561,7 @@ export default function StaffStudents() {
       fd.append('firstName', editForm.firstName.trim());
       fd.append('fatherName', editForm.fatherName.trim());
       fd.append('lastName', editForm.lastName.trim());
+      if (editForm.certificateName.trim()) fd.append('certificateName', editForm.certificateName.trim());
       fd.append('address', editForm.address.trim());
       fd.append('qualification', editForm.qualification.trim());
       fd.append('phoneNumber', editForm.phoneNumber.trim());
@@ -703,6 +707,7 @@ export default function StaffStudents() {
                   <div className="form-group"><label className="form-label">First Name <span className="required">*</span></label><input className={`form-input ${errors.firstName?'error':''}`} placeholder="e.g. Rahul" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} />{errors.firstName && <span className="form-error">{errors.firstName}</span>}</div>
                   <div className="form-group"><label className="form-label">Father's Name</label><input className={`form-input ${errors.fatherName?'error':''}`} placeholder="e.g. Suresh" value={form.fatherName} onChange={e => setForm({...form, fatherName: e.target.value})} />{errors.fatherName && <span className="form-error">{errors.fatherName}</span>}</div>
                   <div className="form-group"><label className="form-label">Surname</label><input className={`form-input ${errors.lastName?'error':''}`} placeholder="e.g. Kumar" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} />{errors.lastName && <span className="form-error">{errors.lastName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Certificate Name</label><input className="form-input" placeholder="Name as it should appear on certificate (optional)" value={form.certificateName} onChange={e => setForm({...form, certificateName: e.target.value})} /><span className="form-hint">Leave empty to use First Name + Surname</span></div>
                   <div className="form-group"><label className="form-label">Mobile <span className="required">*</span></label><input className={`form-input ${errors.phoneNumber?'error':''}`} placeholder="10-digit" maxLength={10} value={form.phoneNumber} onChange={e => setForm({...form, phoneNumber: e.target.value.replace(/\D/g,'')})} />{errors.phoneNumber && <span className="form-error">{errors.phoneNumber}</span>}</div>
                   <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" placeholder="Optional" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
                   <div className="form-group"><label className="form-label">Qualification <span className="required">*</span></label><input className={`form-input ${errors.qualification?'error':''}`} placeholder="e.g. B.Tech CSE" value={form.qualification} onChange={e => setForm({...form, qualification: e.target.value.replace(/[^a-zA-Z0-9 .]/g,'')})} />{errors.qualification && <span className="form-error">{errors.qualification}</span>}</div>
@@ -954,6 +959,7 @@ export default function StaffStudents() {
                   <div className="form-group"><label className="form-label">First Name <span className="required">*</span></label><input className={`form-input ${editErrors.firstName?'error':''}`} placeholder="e.g. Rahul" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />{editErrors.firstName && <span className="form-error">{editErrors.firstName}</span>}</div>
                   <div className="form-group"><label className="form-label">Father's Name</label><input className={`form-input ${editErrors.fatherName?'error':''}`} placeholder="e.g. Suresh" value={editForm.fatherName} onChange={e => setEditForm({...editForm, fatherName: e.target.value})} />{editErrors.fatherName && <span className="form-error">{editErrors.fatherName}</span>}</div>
                   <div className="form-group"><label className="form-label">Surname</label><input className={`form-input ${editErrors.lastName?'error':''}`} placeholder="e.g. Kumar" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} />{editErrors.lastName && <span className="form-error">{editErrors.lastName}</span>}</div>
+                  <div className="form-group"><label className="form-label">Certificate Name</label><input className="form-input" placeholder="Name as it should appear on certificate (optional)" value={editForm.certificateName} onChange={e => setEditForm({...editForm, certificateName: e.target.value})} /><span className="form-hint">Leave empty to use First Name + Surname</span></div>
                   <div className="form-group"><label className="form-label">Mobile <span className="required">*</span></label><input className={`form-input ${editErrors.phoneNumber?'error':''}`} placeholder="10-digit" maxLength={10} value={editForm.phoneNumber} onChange={e => setEditForm({...editForm, phoneNumber: e.target.value.replace(/\D/g,'')})} />{editErrors.phoneNumber && <span className="form-error">{editErrors.phoneNumber}</span>}</div>
                   <div className="form-group"><label className="form-label">Email</label><input type="email" className="form-input" placeholder="Optional" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} /></div>
                   <div className="form-group"><label className="form-label">Qualification <span className="required">*</span></label><input className={`form-input ${editErrors.qualification?'error':''}`} placeholder="e.g. B.Tech CSE" value={editForm.qualification} onChange={e => setEditForm({...editForm, qualification: e.target.value.replace(/[^a-zA-Z0-9 .]/g,'')})} />{editErrors.qualification && <span className="form-error">{editErrors.qualification}</span>}</div>

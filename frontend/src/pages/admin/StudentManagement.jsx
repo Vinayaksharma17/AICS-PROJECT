@@ -18,7 +18,9 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
   const containerRef = useRef(null);
 
   const ASPECT_RATIO = fieldName === 'studentPhoto' ? 3 / 4 : 16 / 9;
-  const CROP_SIZE = 200;
+  const OUTPUT_HEIGHT = 1000;
+  const OUTPUT_WIDTH = Math.round(OUTPUT_HEIGHT * ASPECT_RATIO);
+  const CROP_SIZE = 1000;
 
   useEffect(() => {
     const img = new Image();
@@ -35,10 +37,10 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
 
   const handleMouseMove = (e) => {
     if (!isDragging) return;
-    const maxX = CROP_SIZE * zoom;
-    const maxY = CROP_SIZE * zoom;
-    const newX = Math.min(0, Math.max(-maxX + CROP_SIZE, e.clientX - dragStart.x));
-    const newY = Math.min(0, Math.max(-maxY + CROP_SIZE, e.clientY - dragStart.y));
+    const maxX = OUTPUT_WIDTH * zoom;
+    const maxY = OUTPUT_HEIGHT * zoom;
+    const newX = Math.min(0, Math.max(-maxX + OUTPUT_WIDTH, e.clientX - dragStart.x));
+    const newY = Math.min(0, Math.max(-maxY + OUTPUT_HEIGHT, e.clientY - dragStart.y));
     setCrop({ x: newX, y: newY });
   };
 
@@ -46,23 +48,23 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
 
   const handleCrop = () => {
     const canvas = document.createElement('canvas');
-    const scale = imgSize.width / (CROP_SIZE * zoom);
-    canvas.width = CROP_SIZE;
-    canvas.height = CROP_SIZE;
+    const scale = imgSize.width / (OUTPUT_WIDTH * zoom);
+    canvas.width = OUTPUT_WIDTH;
+    canvas.height = OUTPUT_HEIGHT;
     const ctx = canvas.getContext('2d');
     const sx = (-crop.x) * scale;
     const sy = (-crop.y) * scale;
-    const sw = CROP_SIZE * scale;
-    const sh = CROP_SIZE * scale;
+    const sw = OUTPUT_WIDTH * scale;
+    const sh = OUTPUT_HEIGHT * scale;
     const img = new Image();
     img.onload = () => {
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, CROP_SIZE, CROP_SIZE);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
       canvas.toBlob(blob => {
         if (blob) {
-          const file = new File([blob], `cropped_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          const file = new File([blob], `cropped_${Date.now()}.png`, { type: 'image/png' });
           onCrop(file);
         }
-      }, 'image/jpeg', 0.9);
+      }, 'image/png');
     };
     img.src = imageSrc;
   };
@@ -81,7 +83,7 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
           <div
             ref={containerRef}
             style={{
-              width: CROP_SIZE, height: CROP_SIZE, margin: '0 auto',
+              width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT, margin: '0 auto',
               overflow: 'hidden', position: 'relative', borderRadius: 8,
               border: '3px solid var(--primary)', cursor: 'grab',
               background: '#f0f0f0'
@@ -98,7 +100,7 @@ function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
               draggable={false}
               style={{
                 position: 'absolute', maxWidth: 'none',
-                width: CROP_SIZE * zoom, height: CROP_SIZE * zoom,
+                width: OUTPUT_WIDTH * zoom, height: OUTPUT_HEIGHT * zoom,
                 left: crop.x, top: crop.y,
                 transform: 'translate(0, 0)',
                 pointerEvents: 'none'
@@ -187,7 +189,7 @@ function CameraModal({ label, onCapture, onClose }) {
 }
 
 const emptyForm = {
-  firstName: '', fatherName: '', lastName: '',
+  firstName: '', fatherName: '', lastName: '', certificateName: '',
   address: '', qualification: '', phoneNumber: '', email: '',
   course: '', couponCode: '', courseDuration: '',
   totalFees: '', initialPayment: '0', initialPaymentMethod: 'cash',
@@ -436,6 +438,7 @@ export default function StudentManagement() {
       formData.append('firstName', form.firstName.trim());
       formData.append('fatherName', form.fatherName.trim());
       formData.append('lastName', form.lastName.trim());
+      if (form.certificateName.trim()) formData.append('certificateName', form.certificateName.trim());
       formData.append('address', form.address.trim());
       formData.append('qualification', form.qualification.trim());
       formData.append('phoneNumber', form.phoneNumber.trim());
@@ -548,6 +551,7 @@ export default function StudentManagement() {
       formData.append('firstName', editForm.firstName.trim());
       formData.append('fatherName', editForm.fatherName.trim());
       formData.append('lastName', editForm.lastName.trim());
+      if (editForm.certificateName.trim()) formData.append('certificateName', editForm.certificateName.trim());
       formData.append('address', editForm.address.trim());
       formData.append('qualification', editForm.qualification.trim());
       formData.append('phoneNumber', editForm.phoneNumber.trim());
@@ -618,6 +622,7 @@ export default function StudentManagement() {
       firstName: student.firstName || '',
       fatherName: student.fatherName || '',
       lastName: student.lastName || '',
+      certificateName: student.certificateName || '',
       phoneNumber: student.phoneNumber || '',
       email: student.email || '',
       address: student.address || '',
@@ -784,6 +789,11 @@ export default function StudentManagement() {
                     <label className="form-label">Surname</label>
                     <input className={`form-input ${errors.lastName ? 'error' : ''}`} placeholder="e.g. Kumar" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} />
                     {errors.lastName && <span className="form-error">{errors.lastName}</span>}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Certificate Name</label>
+                    <input className="form-input" placeholder="Name as it should appear on certificate (optional)" value={form.certificateName} onChange={e => setForm({...form, certificateName: e.target.value})} />
+                    <span className="form-hint">Leave empty to use First Name + Surname</span>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Mobile Number <span className="required">*</span></label>
@@ -1216,6 +1226,11 @@ export default function StudentManagement() {
                     <label className="form-label">Surname</label>
                     <input className={`form-input ${editErrors.lastName ? 'error' : ''}`} placeholder="e.g. Kumar" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} />
                     {editErrors.lastName && <span className="form-error">{editErrors.lastName}</span>}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Certificate Name</label>
+                    <input className="form-input" placeholder="Name as it should appear on certificate (optional)" value={editForm.certificateName} onChange={e => setEditForm({...editForm, certificateName: e.target.value})} />
+                    <span className="form-hint">Leave empty to use First Name + Surname</span>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Mobile Number <span className="required">*</span></label>

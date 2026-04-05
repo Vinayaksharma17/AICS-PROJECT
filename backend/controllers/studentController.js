@@ -21,7 +21,7 @@ const cleanupUploadedFiles = (req) => {
 exports.addStudent = async (req, res) => {
   try {
     const {
-      firstName, fatherName, lastName, phoneNumber, email,
+      firstName, fatherName, lastName, certificateName, phoneNumber, email,
       address, qualification, course, totalFees, paidFees,
       initialPaymentMethod, couponCode, courseDuration, admissionDate, installments
     } = req.body;
@@ -76,7 +76,7 @@ exports.addStudent = async (req, res) => {
     const aadharCardFile = files.aadharCard && files.aadharCard[0];
 
     const student = await Student.create({
-      firstName, fatherName, lastName,
+      firstName, fatherName, lastName, certificateName,
       phoneNumber, email, address, qualification,
       course, totalFees: Number(totalFees),
       discount: discountData,
@@ -171,7 +171,7 @@ exports.updateStudent = async (req, res) => {
     const student = await Student.findById(req.params.id);
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    const fields = ['firstName','fatherName','lastName','phoneNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted'];
+    const fields = ['firstName','fatherName','lastName','certificateName','phoneNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted'];
     fields.forEach(f => { if (req.body[f] !== undefined) student[f] = req.body[f]; });
 
     if (req.body.admissionDate) {

@@ -5,6 +5,7 @@ const studentSchema = new mongoose.Schema({
   firstName: { type: String, required: [true, 'Please add first name'], trim: true },
   fatherName: { type: String, trim: true },
   lastName:   { type: String, trim: true },
+  certificateName: { type: String, trim: true },
 
   // Required Fields
   address:       { type: String, required: [true, 'Please add address'] },
