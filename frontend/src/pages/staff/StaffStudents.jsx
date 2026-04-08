@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 import api from '../../utils/api';
 
 const BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
@@ -18,148 +20,83 @@ const emptyDocs     = { studentPhoto: null, qualificationDoc: null, aadharCard: 
 const emptyPreviews = { studentPhoto: null, qualificationDoc: null, aadharCard: null };
 
 /* ─── Image Crop Modal ──────────────────────────────────────────────────── */
+function getCroppedImg(imgEl, pixelCrop) {
+  const scaleX = imgEl.naturalWidth / imgEl.width;
+  const scaleY = imgEl.naturalHeight / imgEl.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(pixelCrop.width * scaleX);
+  canvas.height = Math.round(pixelCrop.height * scaleY);
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(
+    imgEl,
+    pixelCrop.x * scaleX, pixelCrop.y * scaleY,
+    pixelCrop.width * scaleX, pixelCrop.height * scaleY,
+    0, 0, canvas.width, canvas.height,
+  );
+  return new Promise((resolve) =>
+    canvas.toBlob(
+      (blob) => resolve(new File([blob], `cropped_${Date.now()}.jpg`, { type: 'image/jpeg' })),
+      'image/jpeg',
+      0.92,
+    )
+  );
+}
+
 function ImageCropModal({ imageSrc, fieldName, onCrop, onClose }) {
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const imgRef = useRef(null);
-  // Fixed 3:4 for studentPhoto (certificate), natural ratio for documents
   const isPhoto = fieldName === 'studentPhoto';
-  const naturalRatio = imgSize.height > 0 ? imgSize.width / imgSize.height : 1;
-  const ASPECT_RATIO = isPhoto ? 4 / 5 : naturalRatio;
+  const [crop, setCrop] = useState();
+  const [completedCrop, setCompletedCrop] = useState(null);
 
-  // Fit display dimensions within the modal (max 440w × 400h)
-  const MAX_W = 440, MAX_H = 400;
-  let DISPLAY_WIDTH, DISPLAY_HEIGHT;
-  if (ASPECT_RATIO >= MAX_W / MAX_H) {
-    DISPLAY_WIDTH = MAX_W;
-    DISPLAY_HEIGHT = Math.round(MAX_W / ASPECT_RATIO);
-  } else {
-    DISPLAY_HEIGHT = MAX_H;
-    DISPLAY_WIDTH = Math.round(MAX_H * ASPECT_RATIO);
-  }
+  const onImageLoad = useCallback((e) => {
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+    const c = isPhoto
+      ? centerCrop(makeAspectCrop({ unit: '%', width: 80 }, 4 / 5, w, h), w, h)
+      : centerCrop({ unit: '%', width: 90, height: 90 }, w, h);
+    setCrop(c);
+  }, [isPhoto]);
 
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => setImgSize({ width: img.width, height: img.height });
-    img.src = imageSrc;
-  }, [imageSrc]);
-
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - crop.x, y: e.clientY - crop.y });
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    const maxX = DISPLAY_WIDTH * zoom;
-    const maxY = DISPLAY_HEIGHT * zoom;
-    const newX = Math.min(0, Math.max(-maxX + DISPLAY_WIDTH, e.clientX - dragStart.x));
-    const newY = Math.min(0, Math.max(-maxY + DISPLAY_HEIGHT, e.clientY - dragStart.y));
-    setCrop({ x: newX, y: newY });
-  };
-
-  const handleMouseUp = () => setIsDragging(false);
-
-  const handleCrop = () => {
-    const canvas = document.createElement('canvas');
-    const scale = imgSize.width / (DISPLAY_WIDTH * zoom);
-
-    const sx = (-crop.x) * scale;
-    const sy = (-crop.y) * scale;
-    const sw = DISPLAY_WIDTH * scale;
-    const sh = DISPLAY_HEIGHT * scale;
-
-    // Use native crop resolution, capped to keep file size under 1 MB
-    const MAX_CANVAS_HEIGHT = 2000;
-    let canvasH = Math.round(sh);
-    let canvasW = Math.round(sw);
-    if (canvasH > MAX_CANVAS_HEIGHT) {
-      const ratio = canvasW / canvasH;
-      canvasH = MAX_CANVAS_HEIGHT;
-      canvasW = Math.round(MAX_CANVAS_HEIGHT * ratio);
-    }
-
-    canvas.width = canvasW;
-    canvas.height = canvasH;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
-    const img = new Image();
-    img.onload = () => {
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
-      canvas.toBlob(blob => {
-        if (blob) {
-          const file = new File([blob], `cropped_${Date.now()}.jpg`, { type: 'image/jpeg' });
-          onCrop(file);
-        }
-      }, 'image/jpeg', 0.92);
-    };
-    img.src = imageSrc;
+  const handleApply = async () => {
+    if (!completedCrop || !imgRef.current) return;
+    const file = await getCroppedImg(imgRef.current, completedCrop);
+    onCrop(file);
   };
 
   return (
     <div className="modal-overlay" style={{ zIndex: 10001 }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 500, width: '95%' }}>
+      <div className="modal" style={{ maxWidth: 560, width: '95%' }}>
         <div className="modal-header">
           <h3 className="modal-title">✂️ Crop Image</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body" style={{ padding: '1rem' }}>
-          {imgSize.width === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--gray-500)' }}>Loading image…</div>
-          ) : (<>
-          <div style={{ textAlign: 'center', marginBottom: '1rem', color: 'var(--gray-600)', fontSize: '0.85rem' }}>
-            Drag to adjust position • Use slider to zoom
+          <div style={{ textAlign: 'center', marginBottom: '0.75rem', color: 'var(--gray-600)', fontSize: '0.85rem' }}>
+            Drag the handles on any side or corner to crop
           </div>
-          <div
-            style={{
-              width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT, margin: '0 auto',
-              overflow: 'hidden', position: 'relative', borderRadius: 8,
-              border: '3px solid var(--primary)', cursor: 'grab',
-              background: '#f0f0f0'
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
-            <img
-              ref={imgRef}
-              src={imageSrc}
-              alt="Crop preview"
-              draggable={false}
-              style={{
-                position: 'absolute', maxWidth: 'none',
-                width: DISPLAY_WIDTH * zoom, height: DISPLAY_HEIGHT * zoom,
-                left: crop.x, top: crop.y,
-                transform: 'translate(0, 0)',
-                pointerEvents: 'none'
-              }}
-            />
-            <div style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none',
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.3) 100%)'
-            }} />
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <ReactCrop
+              crop={crop}
+              onChange={(c) => setCrop(c)}
+              onComplete={(c) => setCompletedCrop(c)}
+              aspect={isPhoto ? 4 / 5 : undefined}
+              minWidth={50}
+              minHeight={50}
+            >
+              <img
+                ref={imgRef}
+                src={imageSrc}
+                alt="Crop"
+                onLoad={onImageLoad}
+                style={{ maxWidth: '100%', maxHeight: 420, display: 'block' }}
+              />
+            </ReactCrop>
           </div>
-          <div style={{ marginTop: '1rem' }}>
-            <label style={{ fontSize: '0.85rem', color: 'var(--gray-600)', marginBottom: '0.5rem', display: 'block' }}>
-              Zoom: {Math.round(zoom * 100)}%
-            </label>
-            <input
-              type="range" min="1" max="3" step="0.1" value={zoom}
-              onChange={e => setZoom(parseFloat(e.target.value))}
-              style={{ width: '100%' }}
-            />
-          </div>
-          </>)}
         </div>
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleCrop} disabled={imgSize.width === 0}>✅ Apply Crop</button>
+          <button className="btn btn-primary" onClick={handleApply} disabled={!completedCrop}>✅ Apply Crop</button>
         </div>
       </div>
     </div>
