@@ -14,7 +14,7 @@ const emptyForm = {
   address: '', qualification: '', phoneNumber: '', email: '',
   course: '', couponCode: '', courseDuration: '',
   totalFees: '', initialPayment: '0', initialPaymentMethod: 'cash',
-  numInstallments: 'none'
+  numInstallments: 'none', admissionDate: ''
 };
 const emptyDocs     = { studentPhoto: null, qualificationDoc: null, aadharCard: null };
 const emptyPreviews = { studentPhoto: null, qualificationDoc: null, aadharCard: null };
@@ -395,6 +395,7 @@ export default function StaffStudents() {
       fd.append('initialPaymentMethod', form.initialPaymentMethod || 'cash');
       if (form.couponCode.trim()) fd.append('couponCode', form.couponCode.trim());
       fd.append('courseDuration', Number(form.courseDuration) || 3);
+      fd.append('admissionDate', form.admissionDate || '');
       fd.append('installments', JSON.stringify(installments));
       if (docs.studentPhoto)    fd.append('studentPhoto',    docs.studentPhoto);
       if (docs.qualificationDoc) fd.append('qualificationDoc', docs.qualificationDoc);
@@ -684,6 +685,7 @@ export default function StaffStudents() {
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Course & Fees</div>
                   <div className="form-group"><label className="form-label">Course <span className="required">*</span></label><select className={`form-select ${errors.course?'error':''}`} value={form.course} onChange={e => handleCourseChange(e.target.value)}><option value="">Select Course</option>{courses.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}</select>{errors.course && <span className="form-error">{errors.course}</span>}</div>
                   <div className="form-group"><label className="form-label">Duration (months)</label><input type="number" className="form-input" placeholder="e.g. 6" value={form.courseDuration} onChange={e => setForm({...form, courseDuration: e.target.value})} /></div>
+                  <div className="form-group"><label className="form-label">Admission Date</label><input type="date" className="form-input" value={form.admissionDate} onChange={e => setForm({...form, admissionDate: e.target.value})} /></div>
                   <div className="form-group"><label className="form-label">Course Fees (₹) <span className="required">*</span></label><input type="number" className={`form-input ${errors.totalFees?'error':''}`} placeholder="Total fees" value={form.totalFees} onChange={e => { setForm({...form, totalFees: e.target.value}); setFinalFees(Number(e.target.value)); setCouponInfo(null); }} />{errors.totalFees && <span className="form-error">{errors.totalFees}</span>}</div>
                   <div className="form-group">
                     <label className="form-label">Discount Coupon</label>
