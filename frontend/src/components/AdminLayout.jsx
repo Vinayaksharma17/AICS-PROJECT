@@ -53,7 +53,7 @@ export default function AdminLayout() {
         <div className="sidebar-brand">
           <div className="sidebar-brand-icon">🎓</div>
           <div className="sidebar-brand-text">
-            <h2>Institute</h2>
+            <h2>AICE Society</h2>
             <span>Management System</span>
           </div>
         </div>

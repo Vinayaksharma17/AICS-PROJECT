@@ -152,7 +152,7 @@ export default function Certificates() {
             <div className="table-responsive">
               <div className="table-container">
                 <table>
-                  <thead><tr><th>Student</th><th>Course</th><th>Enrolled</th><th>Payment</th><th>Documents</th><th>Cert. No.</th><th>Status</th><th>Action</th></tr></thead>
+                  <thead><tr><th>Student</th><th>Course</th><th>Enrolled</th><th>Payment</th><th>Documents</th><th>SR. No</th><th>Status</th><th>Action</th></tr></thead>
                   <tbody>
                     {paginated.map(s => {
                       const { fullPaid, docsUploaded } = checkEligibility(s);

@@ -1092,12 +1092,12 @@ export default function StudentManagement() {
                         >
                           Pay
                         </button>
-                        <button
+                         {/*<button
                           className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(s._id)}
                         >
                           Remove
-                        </button>
+                        </button> */}
                       </td>
                     </tr>
                   ))}
@@ -1363,6 +1363,17 @@ export default function StudentManagement() {
                       <span className="form-error">{errors.totalFees}</span>
                     )}
                   </div>
+                  {/*
+                  a
+                  a
+                  a
+                  a
+                  a
+                  a
+                  a
+                  a
+                  a
+                  */}
                   <div className="form-group">
                     {/* Issue #4: Discount dropdown */}
                     <label className="form-label">Discount Coupon</label>
@@ -2785,7 +2796,7 @@ export default function StudentManagement() {
                     </select>
                   </div>
 
-                  <div
+                 <div
                     style={{ gridColumn: '1 / -1' }}
                     className="form-section-title"
                   >
