@@ -133,7 +133,7 @@ exports.generateCertificate = async (req, res) => {
     // ── 3. TOP INFO BAR ───────────────────────────────────────────────────────
     doc.font('Helvetica-Bold').fontSize(10).fillColor(DARK)
     doc.text('KSDC Reg.No. : VTP0001709', 18, 16, { lineBreak: false })
-    doc.text('NSDC Reg.No. : T.P.134118', 18, 27, { lineBreak: false })
+    doc.text('NSDC Reg.No. : TP134118', 18, 27, { lineBreak: false })
 
     doc.font('Helvetica-Bold').fontSize(11.5).fillColor(DARK)
     doc.text('AICE Society', 0, 16, {
@@ -158,7 +158,7 @@ exports.generateCertificate = async (req, res) => {
       align: 'right',
       lineBreak: false,
     })
-    doc.text(`I.S.No.: ${certNum}`, W - 234, 27, {
+    doc.text(`C.R.No.: ${certNum}`, W - 234, 27, {
       width: 216,
       align: 'right',
       lineBreak: false,
