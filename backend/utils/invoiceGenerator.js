@@ -436,33 +436,37 @@ const generateInvoice = async (student, invoiceNumber) => {
         let fullPayY = payTableY + 20
 
         if (student.payments && student.payments.length > 0) {
-          const payment = student.payments[0]
-          doc.rect(30, fullPayY, 535, 18).stroke('#d1d5db')
-          doc.fontSize(8).fillColor('#000000')
-          doc.text(
-            new Date(payment.date || Date.now()).toLocaleDateString('en-IN', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            }),
-            45,
-            fullPayY + 5,
-          )
-          doc
-            .fillColor('#059669')
-            .text(
-              `Rs.${payment.amount.toLocaleString('en-IN')}`,
-              180,
+          // Show all payments
+          student.payments.forEach((payment, idx) => {
+            const rowBg = idx % 2 === 0 ? '#ffffff' : '#f9fafb'
+            doc.rect(30, fullPayY, 535, 18).fillAndStroke(rowBg, '#d1d5db')
+            doc.fontSize(8).fillColor('#000000')
+            doc.text(
+              new Date(payment.date || Date.now()).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              }),
+              45,
               fullPayY + 5,
             )
-          doc
-            .fillColor('#000000')
-            .text(
-              (payment.paymentMethod || 'CASH').toUpperCase(),
-              320,
-              fullPayY + 5,
-            )
-          doc.fillColor('#059669').text('PAID', 450, fullPayY + 5)
+            doc
+              .fillColor('#059669')
+              .text(
+                `Rs.${payment.amount.toLocaleString('en-IN')}`,
+                180,
+                fullPayY + 5,
+              )
+            doc
+              .fillColor('#000000')
+              .text(
+                (payment.paymentMethod || 'CASH').toUpperCase(),
+                320,
+                fullPayY + 5,
+              )
+            doc.fillColor('#059669').text('PAID', 450, fullPayY + 5)
+            fullPayY += 18
+          })
         } else {
           // No payment yet — show pending row
           doc.rect(30, fullPayY, 535, 18).fillAndStroke('#fffbeb', '#d1d5db')

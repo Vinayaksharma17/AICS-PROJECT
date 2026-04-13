@@ -65,6 +65,7 @@ function hRule(doc, x1, y, x2, w, color) {
 // ═════════════════════════════════════════════════════════════════════════════
 exports.generateCertificate = async (req, res) => {
   try {
+    const { grade } = req.query // Get grade from query params
     const student = await Student.findById(req.params.studentId).populate(
       'course',
       'name duration subjects description',
@@ -77,6 +78,9 @@ exports.generateCertificate = async (req, res) => {
         message: 'Cannot issue certificate with pending fees',
         pendingAmount: student.pendingFees,
       })
+
+    // Use passed grade, or fall back to student's grade, or default to 'A'
+    const certificateGrade = grade || student.grade || 'A'
 
     const certsDir = path.join(__dirname, '..', '..', 'uploads', 'certificates')
     if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true })
@@ -388,13 +392,13 @@ exports.generateCertificate = async (req, res) => {
 
     // Row 6: With [GRADE] Grade — centered
     const R6Y = R5Y + LH + 4
-    const grade = student.grade || 'A'
+    const gradeValue = certificateGrade
     // Measure all parts to center the whole line
     doc.font('Times-BoldItalic').fontSize(13)
     const withW = doc.widthOfString('With')
     const gradeW = doc.widthOfString('Grade')
     doc.font('Helvetica-Bold').fontSize(16)
-    const grValW = doc.widthOfString(grade)
+    const grValW = doc.widthOfString(gradeValue)
     const gapA = 12,
       gapB = 12,
       ulPad = 16 // gaps and underline padding
@@ -407,7 +411,7 @@ exports.generateCertificate = async (req, res) => {
     const grValX = grStartX + withW + gapA
     hRule(doc, grValX, R6Y + 18, grValX + ulPad * 2 + grValW, 0.8, GREY)
     doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK)
-    doc.text(grade, grValX + ulPad, R6Y - 1, { lineBreak: false })
+    doc.text(gradeValue, grValX + ulPad, R6Y - 1, { lineBreak: false })
     // "Grade"
     doc.font('Times-BoldItalic').fontSize(16).fillColor(DARK)
     doc.text('Grade', grValX + ulPad * 2 + grValW + gapB, R6Y + 2, {
