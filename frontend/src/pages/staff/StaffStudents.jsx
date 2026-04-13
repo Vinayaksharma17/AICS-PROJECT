@@ -146,23 +146,23 @@ function CameraModal({ label, onCapture, onClose }) {
 
   return (
     <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal modal-sm">
+      <div className="modal modal-sm" style={{ maxHeight: '100vh', display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div className="modal-header">
           <h3 className="modal-title">📷 Capture — {label}</h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
-        <div className="modal-body" style={{ textAlign: 'center', padding: '1rem' }}>
+        <div className="modal-body" style={{ textAlign: 'center', padding: '1rem', flex: '1', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {camError
             ? <div style={{ padding: '1.5rem', color: '#dc2626', background: '#fef2f2', borderRadius: 8, fontSize: '0.875rem' }}>{camError}</div>
             : <>
                 <video ref={videoRef} autoPlay playsInline
-                  style={{ width: '100%', maxHeight: 300, borderRadius: 8, background: '#000', display: ready ? 'block' : 'none' }} />
+                  style={{ width: '100%', maxHeight: 'calc(100vh - 150px)', borderRadius: 8, background: '#000', display: ready ? 'block' : 'none' }} />
                 {!ready && !camError && <div style={{ padding: '2rem', color: '#6b7280' }}>Starting camera…</div>}
                 <canvas ref={canvasRef} style={{ display: 'none' }} />
               </>
           }
         </div>
-        <div className="modal-footer">
+        <div className="modal-footer" style={{ flexShrink: 0 }}>
           <button className="btn btn-outline" onClick={onClose}>Cancel</button>
           {ready && !camError && (
             <button className="btn btn-primary" onClick={capture}>📸 Capture Photo</button>
@@ -224,6 +224,8 @@ export default function StaffStudents() {
   const [editDocs,          setEditDocs]          = useState(emptyDocs);
   const [editPreviews,      setEditPreviews]      = useState(emptyPreviews);
   const [editErrors,        setEditErrors]        = useState({});
+  const [editCouponInfo,     setEditCouponInfo]   = useState(null);
+  const [editCouponLoading,  setEditCouponLoading] = useState(false);
   const [selectedStudent,   setSelectedStudent]   = useState(null);
   const [form,              setForm]              = useState(emptyForm);
   const [docs,              setDocs]              = useState(emptyDocs);
@@ -422,11 +424,11 @@ export default function StaffStudents() {
     finally { setSubmitting(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Remove this student?')) return;
-    try { await api.delete(`/students/${id}`); showAlert('success', 'Student removed'); fetchStudents(); }
-    catch (err) { showAlert('error', 'Failed to remove student'); }
-  };
+  // const handleDelete = async (id) => {
+  //   if (!window.confirm('Remove this student?')) return;
+  //   try { await api.delete(`/students/${id}`); showAlert('success', 'Student removed'); fetchStudents(); }
+  //   catch (err) { showAlert('error', 'Failed to remove student'); }
+  // };
 
   const handleUploadDocChange = (field, file) => {
     if (!file) return;
@@ -469,12 +471,18 @@ export default function StaffStudents() {
       course: typeof student.course === 'object' ? student.course._id : student.course || '',
       courseDuration: String(student.courseDuration || ''),
       totalFees: String(student.totalFees || ''),
+      couponCode: student.discount?.couponCode || '',
       status: student.status || 'active',
       admissionDate: student.enrollmentDate ? student.enrollmentDate.split('T')[0] : ''
     });
     setEditDocs(emptyDocs);
     setEditPreviews(emptyPreviews);
     setEditErrors({});
+    setEditCouponInfo(student.discount ? {
+      percentage: student.discount.percentage,
+      finalFees: student.finalFees || student.totalFees,
+      discountAmount: (student.totalFees - (student.finalFees || student.totalFees)),
+    } : null);
     setShowEditModal(true);
   };
 
@@ -507,6 +515,35 @@ export default function StaffStudents() {
   const handleEditCourseChange = (courseId) => {
     const c = courses.find(co => co._id === courseId);
     setEditForm(f => ({ ...f, course: courseId, totalFees: c ? String(c.fees || c.defaultFees || '') : '', courseDuration: c ? String(c.duration || '') : '' }));
+    setEditCouponInfo(null);
+  };
+
+  const handleEditDiscountSelect = (e) => {
+    const selected = activeDiscounts.find(d => d.couponCode === e.target.value);
+    if (!selected) {
+      setEditForm(f => ({ ...f, couponCode: '' }));
+      setEditCouponInfo(null);
+      return;
+    }
+    setEditForm(f => ({ ...f, couponCode: selected.couponCode }));
+    setEditCouponInfo({
+      percentage: selected.percentage,
+      finalFees: Number(editForm.totalFees) - (Number(editForm.totalFees) * selected.percentage / 100),
+      discountAmount: Number(editForm.totalFees) * selected.percentage / 100,
+    });
+  };
+
+  const validateEditCoupon = async () => {
+    if (!editForm.couponCode.trim()) return;
+    if (!editForm.totalFees) return showAlert('error', 'Select a course first');
+    setEditCouponLoading(true);
+    setEditCouponInfo(null);
+    try {
+      const { data } = await api.post('/discounts/validate', { couponCode: editForm.couponCode, courseFees: Number(editForm.totalFees) });
+      setEditCouponInfo(data);
+      showAlert('success', `Coupon applied! ${data.percentage}% off → Final: ₹${data.finalFees.toLocaleString('en-IN')}`);
+    } catch (err) { showAlert('error', err.response?.data?.message || 'Invalid coupon'); }
+    finally { setEditCouponLoading(false); }
   };
 
   const validateEdit = () => {
@@ -540,6 +577,7 @@ export default function StaffStudents() {
       fd.append('courseDuration', Number(editForm.courseDuration) || 3);
       fd.append('admissionDate', editForm.admissionDate || '');
       fd.append('status', editForm.status);
+      if (editForm.couponCode.trim()) fd.append('couponCode', editForm.couponCode.trim());
       if (editDocs.studentPhoto)    fd.append('studentPhoto',    editDocs.studentPhoto);
       if (editDocs.qualificationDoc) fd.append('qualificationDoc', editDocs.qualificationDoc);
       if (editDocs.aadharCard)      fd.append('aadharCard',      editDocs.aadharCard);
@@ -548,6 +586,7 @@ export default function StaffStudents() {
       showAlert('success', 'Student updated successfully!');
       setShowEditModal(false); setShowDetailModal(false);
       setEditForm(emptyForm); setEditDocs(emptyDocs); setEditPreviews(emptyPreviews);
+      setEditCouponInfo(null);
       fetchStudents();
     } catch (err) { showAlert('error', err.response?.data?.message || 'Failed to update student'); }
     finally { setSubmitting(false); }
@@ -941,6 +980,26 @@ export default function StaffStudents() {
                   <div className="form-group"><label className="form-label">Admission Date</label><input type="date" className="form-input" value={editForm.admissionDate} onChange={e => setEditForm({...editForm, admissionDate: e.target.value})} /></div>
                   <div className="form-group"><label className="form-label">Course Fees (₹) <span className="required">*</span></label><input type="number" className={`form-input ${editErrors.totalFees?'error':''}`} placeholder="Total fees" value={editForm.totalFees} onChange={e => setEditForm({...editForm, totalFees: e.target.value})} />{editErrors.totalFees && <span className="form-error">{editErrors.totalFees}</span>}</div>
                   <div className="form-group"><label className="form-label">Status</label><select className="form-select" value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+                  
+                  {selectedStudent.discount && (
+                    <div className="form-group">
+                      <div className="discount-badge" style={{ marginBottom: '0.5rem' }}>🏷️ Applied: {selectedStudent.discount.couponCode} ({selectedStudent.discount.percentage}% off)</div>
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <label className="form-label">Discount Coupon</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <select className="form-select" value={editForm.couponCode} onChange={handleEditDiscountSelect} style={{ flex: 1 }}>
+                        <option value="">-- Select Discount --</option>
+                        {activeDiscounts.map(d => <option key={d._id} value={d.couponCode}>{d.couponCode} — {d.percentage}% off ({d.description})</option>)}
+                      </select>
+                    </div>
+                    <div className="coupon-row">
+                      <input className="form-input" placeholder="Or type coupon code" value={editForm.couponCode} onChange={e => { setEditForm({...editForm, couponCode: e.target.value.toUpperCase()}); setEditCouponInfo(null); }} />
+                      <button type="button" className="btn btn-outline" onClick={validateEditCoupon} disabled={editCouponLoading || !editForm.couponCode || !editForm.totalFees}>{editCouponLoading ? '...' : 'Apply'}</button>
+                    </div>
+                    {editCouponInfo && <div className="discount-badge">🏷️ {editCouponInfo.percentage}% off → Final: ₹{editCouponInfo.finalFees.toLocaleString('en-IN')}</div>}
+                  </div>
 
                   <div style={{ gridColumn: '1 / -1' }} className="form-section-title">Document Uploads</div>
                   {[

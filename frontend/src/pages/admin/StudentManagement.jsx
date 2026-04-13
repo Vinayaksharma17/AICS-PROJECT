@@ -164,7 +164,7 @@ function CameraModal({ label, onCapture, onClose }) {
       style={{ zIndex: 10000 }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal modal-sm">
+      <div className="modal modal-sm" style={{ maxHeight: '100vh', display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div className="modal-header">
           <h3 className="modal-title">📷 Capture — {label}</h3>
           <button className="modal-close" onClick={onClose}>
@@ -173,7 +173,7 @@ function CameraModal({ label, onCapture, onClose }) {
         </div>
         <div
           className="modal-body"
-          style={{ textAlign: 'center', padding: '1rem' }}
+          style={{ textAlign: 'center', padding: '1rem', flex: '1', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {camError ? (
             <div
@@ -195,7 +195,7 @@ function CameraModal({ label, onCapture, onClose }) {
                 playsInline
                 style={{
                   width: '100%',
-                  maxHeight: 300,
+                  maxHeight: 'calc(100vh - 150px)',
                   borderRadius: 8,
                   background: '#000',
                   display: ready ? 'block' : 'none',
@@ -210,7 +210,7 @@ function CameraModal({ label, onCapture, onClose }) {
             </>
           )}
         </div>
-        <div className="modal-footer">
+        <div className="modal-footer" style={{ flexShrink: 0 }}>
           <button className="btn btn-outline" onClick={onClose}>
             Cancel
           </button>
@@ -269,6 +269,8 @@ export default function StudentManagement() {
   const [editDocs, setEditDocs] = useState(emptyDocs)
   const [editPreviews, setEditPreviews] = useState(emptyPreviews)
   const [editErrors, setEditErrors] = useState({})
+  const [editCouponInfo, setEditCouponInfo] = useState(null)
+  const [editCouponLoading, setEditCouponLoading] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [docs, setDocs] = useState(emptyDocs)
@@ -692,6 +694,46 @@ export default function StudentManagement() {
       totalFees: course ? String(course.fees || course.defaultFees || '') : '',
       courseDuration: course ? String(course.duration || '') : '',
     }))
+    setEditCouponInfo(null)
+  }
+
+  const handleEditDiscountSelect = (e) => {
+    const selected = activeDiscounts.find(
+      (d) => d.couponCode === e.target.value,
+    )
+    if (!selected) {
+      setEditForm((f) => ({ ...f, couponCode: '' }))
+      setEditCouponInfo(null)
+      return
+    }
+    setEditForm((f) => ({
+      ...f,
+      couponCode: selected.couponCode,
+    }))
+    setEditCouponInfo({
+      percentage: selected.percentage,
+      finalFees: Number(editForm.totalFees) - (Number(editForm.totalFees) * selected.percentage / 100),
+      discountAmount: Number(editForm.totalFees) * selected.percentage / 100,
+    })
+  }
+
+  const validateEditCoupon = async () => {
+    if (!editForm.couponCode.trim()) return
+    if (!editForm.totalFees) return showAlert('error', 'Select a course first')
+    setEditCouponLoading(true)
+    setEditCouponInfo(null)
+    try {
+      const { data } = await api.post('/discounts/validate', {
+        couponCode: editForm.couponCode,
+        courseFees: Number(editForm.totalFees),
+      })
+      setEditCouponInfo(data)
+      showAlert('success', `Coupon applied! ${data.percentage}% off → Final: ₹${data.finalFees.toLocaleString('en-IN')}`)
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Invalid coupon')
+    } finally {
+      setEditCouponLoading(false)
+    }
   }
 
   const validateEdit = () => {
@@ -729,6 +771,8 @@ export default function StudentManagement() {
       formData.append('courseDuration', Number(editForm.courseDuration) || 3)
       formData.append('admissionDate', editForm.admissionDate || '')
       formData.append('status', editForm.status)
+      if (editForm.couponCode.trim())
+        formData.append('couponCode', editForm.couponCode.trim())
       if (editDocs.studentPhoto)
         formData.append('studentPhoto', editDocs.studentPhoto)
       if (editDocs.qualificationDoc)
@@ -746,6 +790,7 @@ export default function StudentManagement() {
       setEditForm(emptyForm)
       setEditDocs(emptyDocs)
       setEditPreviews(emptyPreviews)
+      setEditCouponInfo(null)
       fetchStudents()
     } catch (err) {
       showAlert(
@@ -851,6 +896,7 @@ export default function StudentManagement() {
           : student.course || '',
       courseDuration: String(student.courseDuration || ''),
       totalFees: String(student.totalFees || ''),
+      couponCode: student.discount?.couponCode || '',
       status: student.status || 'active',
       admissionDate: student.enrollmentDate
         ? student.enrollmentDate.split('T')[0]
@@ -859,6 +905,11 @@ export default function StudentManagement() {
     setEditDocs(emptyDocs)
     setEditPreviews(emptyPreviews)
     setEditErrors({})
+    setEditCouponInfo(student.discount ? {
+      percentage: student.discount.percentage,
+      finalFees: student.finalFees || student.totalFees,
+      discountAmount: (student.totalFees - (student.finalFees || student.totalFees)),
+    } : null)
     setShowEditModal(true)
   }
 
@@ -2784,6 +2835,67 @@ export default function StudentManagement() {
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
                     </select>
+                  </div>
+                  {selectedStudent.discount && (
+                    <div className="form-group">
+                      <div className="discount-badge" style={{ marginBottom: '0.5rem' }}>
+                        🏷️ Applied: {selectedStudent.discount.couponCode} ({selectedStudent.discount.percentage}% off)
+                      </div>
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <label className="form-label">Discount Coupon</label>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        marginBottom: '0.5rem',
+                      }}
+                    >
+                      <select
+                        className="form-select"
+                        value={editForm.couponCode}
+                        onChange={handleEditDiscountSelect}
+                        style={{ flex: 1 }}
+                      >
+                        <option value="">-- Select Discount --</option>
+                        {activeDiscounts.map((d) => (
+                          <option key={d._id} value={d.couponCode}>
+                            {d.couponCode} — {d.percentage}% off ({d.description})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="coupon-row">
+                      <input
+                        className="form-input"
+                        placeholder="Or type coupon code"
+                        value={editForm.couponCode}
+                        onChange={(e) => {
+                          setEditForm({
+                            ...editForm,
+                            couponCode: e.target.value.toUpperCase(),
+                          })
+                          setEditCouponInfo(null)
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        onClick={validateEditCoupon}
+                        disabled={
+                          editCouponLoading || !editForm.couponCode || !editForm.totalFees
+                        }
+                      >
+                        {editCouponLoading ? '...' : 'Apply'}
+                      </button>
+                    </div>
+                    {editCouponInfo && (
+                      <div className="discount-badge">
+                        🏷️ {editCouponInfo.percentage}% off → Final: ₹
+                        {editCouponInfo.finalFees.toLocaleString('en-IN')}
+                      </div>
+                    )}
                   </div>
 
                  <div
