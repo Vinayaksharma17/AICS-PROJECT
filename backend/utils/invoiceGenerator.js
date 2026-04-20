@@ -193,7 +193,7 @@ const generateInvoice = async (student, invoiceNumber) => {
         doc
           .fontSize(9)
           .text(
-            `Discount (${student.discount.couponCode} - ${student.discount.percentage}%)`,
+            'Discount',
             40,
             currentY + 6,
           )
