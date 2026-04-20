@@ -734,9 +734,9 @@ export default function StudentManagement() {
       couponCode: selected.couponCode,
     }))
     setEditCouponInfo({
-      percentage: selected.percentage,
-      finalFees: Number(editForm.totalFees) - (Number(editForm.totalFees) * selected.percentage / 100),
-      discountAmount: Number(editForm.totalFees) * selected.percentage / 100,
+      amount: selected.amount,
+      finalFees: Number(editForm.totalFees) - Math.min(selected.amount, Number(editForm.totalFees)),
+      discountAmount: Math.min(selected.amount, Number(editForm.totalFees)),
     })
   }
 
@@ -751,7 +751,7 @@ export default function StudentManagement() {
         courseFees: Number(editForm.totalFees),
       })
       setEditCouponInfo(data)
-      showAlert('success', `Coupon applied! ${data.percentage}% off → Final: ₹${data.finalFees.toLocaleString('en-IN')}`)
+      showAlert('success', `Coupon applied! ₹${data.amount} off → Final: ₹${data.finalFees.toLocaleString('en-IN')}`)
     } catch (err) {
       showAlert('error', err.response?.data?.message || 'Invalid coupon')
     } finally {
@@ -943,7 +943,7 @@ export default function StudentManagement() {
     setEditPreviews(emptyPreviews)
     setEditErrors({})
     setEditCouponInfo(student.discount ? {
-      percentage: student.discount.percentage,
+      amount: student.discount.amount,
       finalFees: student.finalFees || student.totalFees,
       discountAmount: (student.totalFees - (student.finalFees || student.totalFees)),
     } : null)
@@ -1112,8 +1112,7 @@ export default function StudentManagement() {
                         <div className="td-sub">{s.phoneNumber}</div>
                         {s.discount?.couponCode && (
                           <div className="td-sub">
-                            🏷️ {s.discount.couponCode} ({s.discount.percentage}
-                            %)
+                            🏷️ {s.discount.couponCode} (₹{s.discount.amount})
                           </div>
                         )}
                       </td>
@@ -1489,8 +1488,7 @@ export default function StudentManagement() {
                         <option value="">-- Select Discount --</option>
                         {activeDiscounts.map((d) => (
                           <option key={d._id} value={d.couponCode}>
-                            {d.couponCode} — {d.percentage}% off (
-                            {d.description})
+                            {d.couponCode} — ₹{d.amount} off ({d.description})
                           </option>
                         ))}
                       </select>
@@ -1522,7 +1520,7 @@ export default function StudentManagement() {
                     </div>
                     {couponInfo && (
                       <div className="discount-badge">
-                        🏷️ {couponInfo.percentage}% off → Final: ₹
+                        🏷️ ₹{couponInfo.amount} off → Final: ₹
                         {couponInfo.finalFees.toLocaleString('en-IN')}
                       </div>
                     )}
@@ -2896,7 +2894,7 @@ export default function StudentManagement() {
                   {selectedStudent.discount && (
                     <div className="form-group">
                       <div className="discount-badge" style={{ marginBottom: '0.5rem' }}>
-                        🏷️ Applied: {selectedStudent.discount.couponCode} ({selectedStudent.discount.percentage}% off)
+                        🏷️ Applied: {selectedStudent.discount.couponCode} (₹{selectedStudent.discount.amount} off)
                       </div>
                     </div>
                   )}
@@ -2918,7 +2916,7 @@ export default function StudentManagement() {
                         <option value="">-- Select Discount --</option>
                         {activeDiscounts.map((d) => (
                           <option key={d._id} value={d.couponCode}>
-                            {d.couponCode} — {d.percentage}% off ({d.description})
+                            {d.couponCode} — ₹{d.amount} off ({d.description})
                           </option>
                         ))}
                       </select>
@@ -2949,7 +2947,7 @@ export default function StudentManagement() {
                     </div>
                     {editCouponInfo && (
                       <div className="discount-badge">
-                        🏷️ {editCouponInfo.percentage}% off → Final: ₹
+                        🏷️ ₹{editCouponInfo.amount} off → Final: ₹
                         {editCouponInfo.finalFees.toLocaleString('en-IN')}
                       </div>
                     )}

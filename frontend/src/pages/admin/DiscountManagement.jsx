@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../utils/api';
 
 const PER_PAGE = 8;
-const emptyForm = { couponCode: '', description: '', percentage: '', validFrom: '', validTill: '', applicableToAll: true, isActive: true };
+const emptyForm = { couponCode: '', description: '', amount: '', validFrom: '', validTill: '', applicableToAll: true, isActive: true };
 
 export default function DiscountManagement() {
   const [discounts, setDiscounts] = useState([]);
@@ -45,7 +45,7 @@ export default function DiscountManagement() {
     const e = {};
     if (!form.couponCode.trim()) e.couponCode = 'Required';
     if (!form.description.trim()) e.description = 'Required';
-    if (!form.percentage || Number(form.percentage) < 0 || Number(form.percentage) > 100) e.percentage = '0-100 only';
+    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) < 0) e.amount = 'Enter a valid positive amount';
     if (!form.validFrom) e.validFrom = 'Required';
     if (!form.validTill) e.validTill = 'Required';
     if (form.validFrom && form.validTill && form.validFrom >= form.validTill) e.validTill = 'Must be after start date';
@@ -58,7 +58,7 @@ export default function DiscountManagement() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      const payload = { ...form, couponCode: form.couponCode.toUpperCase(), percentage: Number(form.percentage) };
+      const payload = { ...form, couponCode: form.couponCode.toUpperCase(), amount: Number(form.amount) };
       if (editing) { await api.put(`/discounts/${editing._id}`, payload); showAlert('success', 'Discount updated!'); }
       else { await api.post('/discounts', payload); showAlert('success', 'Discount created!'); }
       setShowModal(false); setEditing(null); setForm(emptyForm); fetchDiscounts();
@@ -83,7 +83,7 @@ export default function DiscountManagement() {
   const openEdit = (d) => {
     setEditing(d);
     setForm({
-      couponCode: d.couponCode, description: d.description, percentage: String(d.percentage),
+      couponCode: d.couponCode, description: d.description, amount: String(d.amount),
       validFrom: d.validFrom ? d.validFrom.split('T')[0] : '',
       validTill: d.validTill ? d.validTill.split('T')[0] : '',
       applicableToAll: d.applicableToAll !== false, isActive: d.isActive
@@ -139,7 +139,7 @@ export default function DiscountManagement() {
                       <tr key={d._id}>
                         <td data-label="Code"><span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.925rem', color: 'var(--primary)', letterSpacing: '0.05em' }}>{d.couponCode}</span></td>
                         <td data-label="Description">{d.description}</td>
-                        <td data-label="Discount"><span className="badge badge-success" style={{ fontSize: '0.85rem' }}>{d.percentage}%</span></td>
+                        <td data-label="Discount"><span className="badge badge-success" style={{ fontSize: '0.85rem' }}>₹{d.amount}</span></td>
                         <td data-label="From">{d.validFrom ? new Date(d.validFrom).toLocaleDateString('en-IN') : '-'}</td>
                         <td data-label="Till">{d.validTill ? new Date(d.validTill).toLocaleDateString('en-IN') : '-'}</td>
                         <td data-label="Usage">{d.usageCount || 0}</td>
@@ -193,9 +193,10 @@ export default function DiscountManagement() {
                     <span className="form-hint">Uppercase letters and numbers only</span>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Discount % <span className="required">*</span></label>
-                    <input type="number" className={`form-input ${errors.percentage ? 'error' : ''}`} placeholder="e.g. 20" min={0} max={100} value={form.percentage} onChange={e => setForm({...form, percentage: e.target.value})} />
-                    {errors.percentage && <span className="form-error">{errors.percentage}</span>}
+                    <label className="form-label">Discount Amount (₹) <span className="required">*</span></label>
+                    <input type="number" className={`form-input ${errors.amount ? 'error' : ''}`} placeholder="e.g. 500 or 250.50" min={0} step="0.01" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
+                    {errors.amount && <span className="form-error">{errors.amount}</span>}
+                    <span className="form-hint">Flat rupee amount deducted from course fees</span>
                   </div>
                   <div className="form-group full-width">
                     <label className="form-label">Description <span className="required">*</span></label>
@@ -219,10 +220,10 @@ export default function DiscountManagement() {
                   </div>
                 </div>
 
-                {form.percentage && (
+                {form.amount && (
                   <div style={{ marginTop: '1rem', padding: '0.875rem', background: 'var(--success-light)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#15803d' }}>
                     <span>🎉</span>
-                    <span>Students save <strong>{form.percentage}%</strong> on course fees with code <strong>{form.couponCode || 'CODE'}</strong></span>
+                    <span>Students save <strong>₹{Number(form.amount).toLocaleString('en-IN')}</strong> on course fees with code <strong>{form.couponCode || 'CODE'}</strong></span>
                   </div>
                 )}
               </div>

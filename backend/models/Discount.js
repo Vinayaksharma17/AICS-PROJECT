@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const discountSchema = new mongoose.Schema({
   couponCode:  { type: String, required: [true, 'Please add coupon code'], unique: true, uppercase: true, trim: true },
   description: { type: String, required: [true, 'Please add description'] },
-  percentage:  { type: Number, required: [true, 'Please add discount percentage'], min: [0, 'Cannot be negative'], max: [100, 'Cannot exceed 100'] },
+  amount:      { type: Number, required: [true, 'Please add discount amount'], min: [0, 'Cannot be negative'] },
 
   // Validity
   validFrom: { type: Date, required: [true, 'Please add valid from date'] },
@@ -41,12 +41,11 @@ discountSchema.methods.isValid = function() {
 
 // Apply discount to fees
 discountSchema.methods.applyDiscount = function(courseFees) {
-  const discountAmount = (courseFees * this.percentage) / 100;
+  const discountAmount = Math.min(this.amount, courseFees); // cannot exceed total fees
   return {
-    originalFees:       courseFees,
-    discountPercentage: this.percentage,
-    discountAmount:     Math.round(discountAmount),
-    finalFees:          Math.round(courseFees - discountAmount)
+    originalFees:   courseFees,
+    discountAmount: discountAmount,
+    finalFees:      Math.max(0, courseFees - discountAmount)
   };
 };
 

@@ -44,7 +44,7 @@ exports.addStudent = async (req, res) => {
       }
       const applied = coupon.applyDiscount(Number(totalFees));
       finalFees = applied.finalFees;
-      discountData = { couponCode: coupon.couponCode, percentage: coupon.percentage, appliedAmount: applied.discountAmount };
+      discountData = { couponCode: coupon.couponCode, amount: coupon.amount, appliedAmount: applied.discountAmount };
       await coupon.incrementUsage();
     }
 
@@ -184,10 +184,10 @@ exports.updateStudent = async (req, res) => {
       const coupon = await Coupon.findOne({ couponCode: req.body.couponCode, isActive: true });
       if (coupon) {
         const totalFees = Number(req.body.totalFees) || student.totalFees;
-        const discountAmount = totalFees * (coupon.percentage / 100);
+        const discountAmount = Math.min(coupon.amount, totalFees);
         student.discount = {
           couponCode: coupon.couponCode,
-          percentage: coupon.percentage,
+          amount: coupon.amount,
           appliedAmount: discountAmount
         };
         student.finalFees = totalFees - discountAmount;

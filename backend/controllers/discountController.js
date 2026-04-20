@@ -61,7 +61,7 @@ exports.validateCoupon = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired coupon code' });
     }
     const result = discount.applyDiscount(Number(courseFees));
-    res.json({ valid: true, couponCode: discount.couponCode, description: discount.description, ...result });
+    res.json({ valid: true, couponCode: discount.couponCode, description: discount.description, amount: discount.amount, ...result });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -70,12 +70,16 @@ exports.validateCoupon = async (req, res) => {
 // Get all active discounts for dropdown (Issue #4)
 exports.getActiveDiscounts = async (req, res) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
     const discounts = await Discount.find({
       isActive: true,
-      validFrom: { $lte: today },
-      validTill: { $gte: today }
+      validFrom: { $lte: endOfDay },
+      validTill: { $gte: startOfDay }
     }).sort('-createdAt');
     res.json(discounts);
   } catch (error) {

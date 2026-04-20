@@ -130,6 +130,94 @@ export default function EnquiryManagement() {
     }
   };
 
+  const downloadEnquiry = (e) => {
+    const fullCourse = courses.find(c => c._id === (e.interestedCourse?._id || e.interestedCourse)) || {};
+    const courseName = fullCourse.name || e.interestedCourse?.name || 'N/A';
+    const courseDesc = fullCourse.description || '';
+    const courseFees = fullCourse.fees ? `₹${Number(fullCourse.fees).toLocaleString('en-IN')}` : '—';
+    const courseDuration = fullCourse.duration ? `${fullCourse.duration} Month${fullCourse.duration > 1 ? 's' : ''}` : '—';
+    const courseSubjects = (fullCourse.subjects || []).filter(Boolean);
+
+    const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+    const statusLabel = e.status === 'new' ? '🆕 New' : e.status === 'contacted' ? '📞 Contacted' : e.status === 'converted' ? '✅ Converted' : '🔒 Closed';
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Enquiry - ${e.firstName} ${e.lastName}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; padding: 32px; color: #1e293b; background: #fff; font-size: 14px; }
+      .header { background: #1e40af; color: white; padding: 20px 28px; border-radius: 8px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
+      .header h1 { font-size: 1.3rem; }
+      .header p { margin-top: 4px; font-size: 0.8rem; opacity: 0.85; }
+      .badge { display: inline-block; padding: 5px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; background: #dbeafe; color: #1e40af; letter-spacing: 0.04em; }
+      .section { margin-bottom: 20px; }
+      .section-title { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; margin-bottom: 12px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 32px; }
+      .grid.three { grid-template-columns: 1fr 1fr 1fr; }
+      .field label { font-size: 0.68rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 3px; }
+      .field span { font-size: 0.95rem; color: #1e293b; font-weight: 600; }
+      .full { grid-column: span 2; }
+      .desc-box { background: #f8fafc; border-left: 3px solid #1e40af; border-radius: 4px; padding: 12px 14px; font-size: 0.9rem; color: #475569; line-height: 1.6; white-space: pre-wrap; }
+      .subjects { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+      .subject-tag { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; border-radius: 4px; padding: 3px 10px; font-size: 0.78rem; font-weight: 600; }
+      .notes-box { background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px; padding: 12px 14px; font-size: 0.9rem; color: #78350f; line-height: 1.6; min-height: 48px; }
+      .footer { margin-top: 28px; font-size: 0.72rem; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+      @media print { body { padding: 16px; } }
+    </style></head><body>
+    <div class="header">
+      <div><h1>📋 Enquiry Record</h1><p>AICS — Downloaded on ${fmt(new Date())}</p></div>
+      <span class="badge">${statusLabel}</span>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Personal Information</div>
+      <div class="grid">
+        <div class="field"><label>Full Name</label><span>${e.firstName} ${e.fatherName} ${e.lastName}</span></div>
+        <div class="field"><label>Mobile</label><span>${e.phoneNumber || '—'}</span></div>
+        <div class="field"><label>Email</label><span>${e.email || '—'}</span></div>
+        <div class="field"><label>Qualification</label><span>${e.qualification || '—'}</span></div>
+        <div class="field full"><label>Address</label><span style="font-weight:400">${e.address || '—'}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Course Interest</div>
+      <div class="grid three">
+        <div class="field"><label>Course Name</label><span>${courseName}</span></div>
+        <div class="field"><label>Duration</label><span>${courseDuration}</span></div>
+        <div class="field"><label>Fees</label><span>${courseFees}</span></div>
+      </div>
+      ${courseDesc ? `<div style="margin-top:12px"><div class="field"><label>Course Description</label></div><div class="desc-box" style="margin-top:6px">${courseDesc}</div></div>` : ''}
+      ${courseSubjects.length > 0 ? `<div style="margin-top:12px"><div class="field"><label>Subjects / Modules</label></div><div class="subjects" style="margin-top:6px">${courseSubjects.map(s => `<span class="subject-tag">${s}</span>`).join('')}</div></div>` : ''}
+    </div>
+
+    <div class="section">
+      <div class="section-title">Follow-Up Details</div>
+      <div class="grid three">
+        <div class="field"><label>Status</label><span>${statusLabel}</span></div>
+        <div class="field"><label>Expected Admission</label><span>${fmt(e.expectedAdmissionDate)}</span></div>
+        <div class="field"><label>Follow-Up Date</label><span>${fmt(e.followUpDate)}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Notes</div>
+      <div class="notes-box">${e.notes || 'No notes added for this enquiry.'}</div>
+    </div>
+
+    <div class="footer">Generated by AICS Admin Panel &nbsp;•&nbsp; ${new Date().toLocaleString('en-IN')} &nbsp;•&nbsp; Confidential</div>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Enquiry_${e.firstName}_${e.lastName}_${e.phoneNumber}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       {alert && <div className={`alert alert-${alert.type}`} style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 9999, maxWidth: '380px' }}>{alert.type === 'success' ? '✅' : '❌'} {alert.message}</div>}
@@ -206,6 +294,7 @@ export default function EnquiryManagement() {
                           )}
                           <button className="btn btn-sm btn-outline" onClick={() => openEdit(e)}>Edit</button>
                           <button className="btn btn-sm btn-success" onClick={() => convertToAdmission(e)}>➡️ Admit</button>
+                          <button className="btn btn-sm btn-outline" title="Download Enquiry" onClick={() => downloadEnquiry(e)}>⬇️ Download</button>
                           <button className="btn btn-sm btn-danger" onClick={() => handleDelete(e._id)}>Del</button>
                         </td>
                       </tr>
