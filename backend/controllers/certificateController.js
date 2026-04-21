@@ -79,8 +79,8 @@ exports.generateCertificate = async (req, res) => {
         pendingAmount: student.pendingFees,
       })
 
-    // Use passed grade, or fall back to student's grade, or default to 'A'
-    const certificateGrade = grade || student.grade || 'A'
+    // Use passed grade — encodeURIComponent on frontend ensures '+' survives the trip
+    const certificateGrade = (grade || student.grade || 'A').trim()
 
     const certsDir = path.join(__dirname, '..', '..', 'uploads', 'certificates')
     if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true })
