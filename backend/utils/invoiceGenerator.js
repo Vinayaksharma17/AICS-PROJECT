@@ -5,6 +5,15 @@ const path = require('path')
 const generateInvoice = async (student, invoiceNumber) => {
   return new Promise((resolve, reject) => {
     try {
+      // Defensive: coerce all numeric fields to safe numbers — prevents .toLocaleString crashes
+      student.totalFees = Number(student.totalFees) || 0
+      student.paidFees = Number(student.paidFees) || 0
+      student.finalFees = Number(student.finalFees) || student.totalFees
+      student.pendingFees = Math.max(0, student.finalFees - student.paidFees)
+      if (student.discount && !student.discount.appliedAmount) {
+        student.discount.appliedAmount = student.totalFees - student.finalFees
+      }
+
       const invoiceDir = path.join(__dirname, '../../uploads/invoices')
       if (!fs.existsSync(invoiceDir)) {
         fs.mkdirSync(invoiceDir, { recursive: true })
@@ -193,7 +202,7 @@ const generateInvoice = async (student, invoiceNumber) => {
         doc
           .fontSize(9)
           .text(
-            `Discount (${student.discount.couponCode} - ${student.discount.percentage}%)`,
+            `Discount (${student.discount.couponCode} - Rs.${student.discount.appliedAmount?.toLocaleString("en-IN")})`,
             40,
             currentY + 6,
           )
@@ -654,13 +663,20 @@ const generateInvoice = async (student, invoiceNumber) => {
           align: 'center',
         })
 
-      doc.end()
-
+      // Register listeners BEFORE doc.end() to avoid missing fast-finish events
       stream.on('finish', () => {
         resolve({ fileName, filePath: `/uploads/invoices/${fileName}` })
       })
 
-      stream.on('error', reject)
+      stream.on('error', (err) => {
+        reject(err)
+      })
+
+      doc.on('error', (err) => {
+        reject(err)
+      })
+
+      doc.end()
     } catch (error) {
       reject(error)
     }

@@ -115,16 +115,26 @@ exports.addStudent = async (req, res) => {
       .populate('course', 'name duration')
       .populate('addedBy', 'name');
 
-    // Generate invoice only if a payment was made
+    // Generate invoice:
+    // - No coupon: always generate (even if no payment yet)
+    // - Coupon applied: only generate when full discounted fees are paid
+    const couponApplied = !!discountData;
+    const fullyPaid = populated.paidFees >= populated.finalFees;
+    const shouldGenerateInvoice = !couponApplied || fullyPaid;
+
     let invoiceResult = null;
-    if (populated.paidFees > 0) {
-      const invoiceNumber = await Counter.getNextInvoiceNumber();
-      const invoice = await generateInvoice(populated, invoiceNumber);
-      populated.invoiceGenerated = true;
-      populated.invoiceNumber = invoiceNumber;
-      populated.invoiceUrl = invoice.filePath;
-      await populated.save();
-      invoiceResult = { url: invoice.filePath, fileName: invoice.fileName };
+    if (shouldGenerateInvoice) {
+      try {
+        const invoiceNumber = await Counter.getNextInvoiceNumber();
+        const invoice = await generateInvoice(populated.toObject({ virtuals: true }), invoiceNumber);
+        populated.invoiceGenerated = true;
+        populated.invoiceNumber = invoiceNumber;
+        populated.invoiceUrl = invoice.filePath;
+        await populated.save();
+        invoiceResult = { url: invoice.filePath, fileName: invoice.fileName };
+      } catch (invoiceErr) {
+        console.error('Invoice generation failed (non-fatal):', invoiceErr.message);
+      }
     }
 
     res.status(201).json({
@@ -256,7 +266,30 @@ exports.updateStudent = async (req, res) => {
     const populated = await Student.findById(updated._id)
       .populate('course', 'name duration fees')
       .populate('addedBy', 'name');
-    res.json(populated);
+
+    // Regenerate invoice on edit:
+    // - No coupon: always generate
+    // - Coupon applied: only generate when fully paid
+    const couponApplied = !!populated.discount;
+    const fullyPaid = populated.paidFees >= populated.finalFees;
+    const shouldGenerateInvoice = !couponApplied || fullyPaid;
+
+    let invoiceResult = null;
+    if (shouldGenerateInvoice) {
+      try {
+        const invoiceNumber = populated.invoiceNumber || await Counter.getNextInvoiceNumber();
+        const invoice = await generateInvoice(populated.toObject({ virtuals: true }), invoiceNumber);
+        populated.invoiceNumber = invoiceNumber;
+        populated.invoiceUrl = invoice.filePath;
+        populated.invoiceGenerated = true;
+        await populated.save();
+        invoiceResult = { url: invoice.filePath, fileName: invoice.fileName };
+      } catch (invoiceErr) {
+        console.error('Invoice generation failed (non-fatal):', invoiceErr.message);
+      }
+    }
+
+    res.json({ student: populated, ...(invoiceResult && { invoice: invoiceResult }) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -304,7 +337,7 @@ exports.addPayment = async (req, res) => {
       .populate('payments.receivedBy', 'name');
 
     const invoiceNumber = updated.invoiceNumber || await Counter.getNextInvoiceNumber();
-    const invoice = await generateInvoice(updated, invoiceNumber);
+    const invoice = await generateInvoice(updated.toObject({ virtuals: true }), invoiceNumber);
     updated.invoiceNumber = invoiceNumber;
     updated.invoiceUrl = invoice.filePath;
     await updated.save();
@@ -352,6 +385,49 @@ exports.uploadDocument = async (req, res) => {
     const updated = await Student.findById(student._id).populate('course', 'name');
     res.json({ message: 'Document uploaded successfully', student: updated });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.downloadInvoice = async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id)
+      .populate('course', 'name duration fees')
+      .populate('addedBy', 'name');
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    const invoiceNumber = student.invoiceNumber || await Counter.getNextInvoiceNumber();
+    const invoice = await generateInvoice(student.toObject({ virtuals: true }), invoiceNumber);
+
+    // Save invoice number if it was just assigned
+    if (!student.invoiceNumber) {
+      student.invoiceNumber = invoiceNumber;
+      student.invoiceUrl = invoice.filePath;
+      student.invoiceGenerated = true;
+      await student.save();
+    }
+
+    // Stream PDF directly to client — no separate fetch needed
+    const fs = require('fs');
+    const path = require('path');
+    const fullPath = path.join(__dirname, '../../uploads/invoices', invoice.fileName);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.fileName}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+
+    const fileStream = fs.createReadStream(fullPath);
+    fileStream.pipe(res);
+    fileStream.on('end', () => {
+      // Clean up temp invoice file after sending
+      fs.unlink(fullPath, () => {});
+    });
+    fileStream.on('error', (err) => {
+      console.error('Invoice stream error:', err.message);
+      if (!res.headersSent) res.status(500).json({ message: 'Failed to stream invoice' });
+    });
+  } catch (error) {
+    console.error('downloadInvoice error:', error.message);
     res.status(500).json({ message: error.message });
   }
 };

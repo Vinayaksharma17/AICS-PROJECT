@@ -5,6 +5,23 @@ import api from '../../utils/api';
 
 const BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
 
+const downloadInvoice = async (studentId, studentName) => {
+  try {
+    const response = await api.get(`/students/${studentId}/invoice`, { responseType: 'blob' });
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = `Invoice_${studentName || studentId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
+  } catch (err) {
+    console.error('Invoice download failed:', err);
+  }
+};
+
 const PER_PAGE = 8;
 const PAYMENT_METHODS = ['cash', 'upi'];
 const MAX_DOC_SIZE = 1 * 1024 * 1024; // 1 MB
@@ -357,6 +374,14 @@ export default function StaffStudents() {
     if (!form.qualification.trim()) e.qualification = 'Required';
     if (!form.course) e.course = 'Select a course';
     if (!form.totalFees) e.totalFees = 'Required';
+    // Coupon applied: must pay full discounted amount upfront
+    if (couponInfo) {
+      const paid = Number(form.initialPayment) || 0;
+      const required = couponInfo.finalFees || 0;
+      if (paid < required) {
+        e.initialPayment = `Coupon applied — full payment of ₹${required.toLocaleString('en-IN')} required to generate invoice`;
+      }
+    }
     setErrors(e); return Object.keys(e).length === 0;
   };
 
@@ -406,7 +431,7 @@ export default function StaffStudents() {
       if (docs.qualificationDoc) fd.append('qualificationDoc', docs.qualificationDoc);
       if (docs.aadharCard)      fd.append('aadharCard',      docs.aadharCard);
       const { data } = await api.post('/students', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (data.invoice?.url) window.open(`${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`, '_blank');
+      if (data.student?._id) downloadInvoice(data.student._id, `${data.student.firstName}_${data.student.lastName}`);
       showAlert('success', 'Student added successfully!');
       setShowModal(false); setForm(emptyForm); setCouponInfo(null); setFinalFees(0); setDocs(emptyDocs); setPreviews(emptyPreviews);
       fetchStudents();
@@ -421,7 +446,7 @@ export default function StaffStudents() {
     setSubmitting(true);
     try {
       const { data } = await api.post(`/students/${selectedStudent._id}/payment`, { amount: Number(paymentForm.amount), paymentMethod: paymentForm.paymentMethod, remarks: paymentForm.remarks });
-      if (data.invoice?.url) window.open(`${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`, '_blank');
+      if (selectedStudent?._id) downloadInvoice(selectedStudent._id, `${selectedStudent.firstName}_${selectedStudent.lastName}`);
       showAlert('success', 'Payment recorded!'); setShowPaymentModal(false); setPaymentForm({ amount: '', paymentMethod: 'cash', remarks: '' }); fetchStudents();
     } catch (err) { showAlert('error', err.response?.data?.message || 'Failed'); }
     finally { setSubmitting(false); }
@@ -560,10 +585,11 @@ export default function StaffStudents() {
     }
     setEditForm(f => ({ ...f, couponCode: selected.couponCode }));
     setEditCouponInfo({
-      percentage: selected.percentage,
-      finalFees: Number(editForm.totalFees) - (Number(editForm.totalFees) * selected.percentage / 100),
-      discountAmount: Number(editForm.totalFees) * selected.percentage / 100,
+      amount: selected.amount,
+      finalFees: Number(editForm.totalFees) - Math.min(selected.amount, Number(editForm.totalFees)),
+      discountAmount: Math.min(selected.amount, Number(editForm.totalFees)),
     });
+    setEditNumInstallments('none'); // coupon = full payment only
   };
 
   const validateEditCoupon = async () => {
@@ -574,7 +600,8 @@ export default function StaffStudents() {
     try {
       const { data } = await api.post('/discounts/validate', { couponCode: editForm.couponCode, courseFees: Number(editForm.totalFees) });
       setEditCouponInfo(data);
-      showAlert('success', `Coupon applied! ${data.percentage}% off → Final: ₹${data.finalFees.toLocaleString('en-IN')}`);
+      setEditNumInstallments('none'); // coupon = full payment only
+      showAlert('success', `Coupon applied! ₹${data.amount} off → Final: ₹${data.finalFees.toLocaleString('en-IN')}`);
     } catch (err) { showAlert('error', err.response?.data?.message || 'Invalid coupon'); }
     finally { setEditCouponLoading(false); }
   };
@@ -626,7 +653,8 @@ export default function StaffStudents() {
       if (editDocs.qualificationDoc) fd.append('qualificationDoc', editDocs.qualificationDoc);
       if (editDocs.aadharCard)      fd.append('aadharCard',      editDocs.aadharCard);
 
-      await api.put(`/students/${selectedStudent._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data: editData } = await api.put(`/students/${selectedStudent._id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (selectedStudent?._id) downloadInvoice(selectedStudent._id, `${editForm.firstName}_${editForm.lastName}`);
       showAlert('success', 'Student updated successfully!');
       setShowEditModal(false); setShowDetailModal(false);
       setEditForm(emptyForm); setEditDocs(emptyDocs); setEditPreviews(emptyPreviews);
@@ -1049,7 +1077,7 @@ export default function StaffStudents() {
                       <input className="form-input" placeholder="Or type coupon code" value={editForm.couponCode} onChange={e => { setEditForm({...editForm, couponCode: e.target.value.toUpperCase()}); setEditCouponInfo(null); }} />
                       <button type="button" className="btn btn-outline" onClick={validateEditCoupon} disabled={editCouponLoading || !editForm.couponCode || !editForm.totalFees}>{editCouponLoading ? '...' : 'Apply'}</button>
                     </div>
-                    {editCouponInfo && <div className="discount-badge">🏷️ {editCouponInfo.percentage}% off → Final: ₹{editCouponInfo.finalFees.toLocaleString('en-IN')}</div>}
+                    {editCouponInfo && <div className="discount-badge">🏷️ ₹{editCouponInfo.amount} off → Final: ₹{editCouponInfo.finalFees.toLocaleString('en-IN')}</div>}
                   </div>
 
                   {/* Payment Section in Edit Modal */}
