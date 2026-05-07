@@ -86,8 +86,16 @@ exports.generateCertificate = async (req, res) => {
     if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true })
 
     let certNum = student.certificateNumber
-    if (!certNum)
-      certNum = await Counter.getNextCertificateNumber(student.enrollmentDate)
+    if (!certNum) {
+      const year = new Date(student.enrollmentDate).getFullYear()
+      const yy = String(year).slice(-2)
+      const allStudents = await Student.find({}).sort({ createdAt: 1 })
+      const studentIndex = allStudents.findIndex(
+        (s) => s._id.toString() === student._id.toString(),
+      )
+      const studentNumber = studentIndex + 1
+      certNum = `${yy}AICES${String(studentNumber).padStart(3, '0')}`
+    }
 
     // const fullName = student.certificateName ? student.certificateName : [student.firstName, student.lastName].filter(Boolean).join(' ').toUpperCase();
     const fullName = (
