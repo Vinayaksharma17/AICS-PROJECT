@@ -1,2 +1,4 @@
 .env
 mongodb_data/
+.claude/*
+uploads/

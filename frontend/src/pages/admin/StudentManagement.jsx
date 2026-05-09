@@ -1124,6 +1124,7 @@ export default function StudentManagement() {
                   <tr>
                     <th>Student</th>
                     <th>Course</th>
+                    <th>Admission Date</th>
                     <th>Total Fees</th>
                     <th>Paid</th>
                     <th>Pending</th>
@@ -1149,6 +1150,9 @@ export default function StudentManagement() {
                       <td data-label="Course">
                         <div>{s.course?.name}</div>
                         <div className="td-sub">{s.courseDuration}m</div>
+                      </td>
+                      <td data-label="Admission Date">
+                        {s.enrollmentDate ? new Date(s.enrollmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                       </td>
                       <td data-label="Total">
                         {fmt(s.finalFees || s.totalFees)}
@@ -2147,6 +2151,24 @@ export default function StudentManagement() {
                     Qualification
                   </div>
                   <div>{selectedStudent.qualification}</div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: 'var(--gray-500)',
+                      textTransform: 'uppercase',
+                      marginBottom: '2px',
+                    }}
+                  >
+                    Admission Date
+                  </div>
+                  <div>
+                    {selectedStudent.enrollmentDate
+                      ? new Date(selectedStudent.enrollmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : '—'}
+                  </div>
                 </div>
                 <div className="full-width">
                   <div

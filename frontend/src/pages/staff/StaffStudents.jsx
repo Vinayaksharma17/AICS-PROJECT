@@ -722,7 +722,7 @@ export default function StaffStudents() {
               <div className="table-container">
                 <table>
                   <thead>
-                    <tr><th>Student</th><th>Course</th><th>Total Fees</th><th>Paid</th><th>Pending</th><th>Documents</th><th>Status</th><th>Actions</th></tr>
+                    <tr><th>Student</th><th>Course</th><th>Admission Date</th><th>Total Fees</th><th>Paid</th><th>Pending</th><th>Documents</th><th>Status</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
                     {paginated.map(s => (
@@ -736,6 +736,7 @@ export default function StaffStudents() {
                           <div>{s.course?.name}</div>
                           <div className="td-sub">{s.courseDuration}m</div>
                         </td>
+                        <td data-label="Admission Date">{s.enrollmentDate ? new Date(s.enrollmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                         <td data-label="Total">{fmt(s.finalFees || s.totalFees)}</td>
                         <td data-label="Paid"><span className="amount amount-paid">{fmt(s.paidFees)}</span></td>
                         <td data-label="Pending"><span className="amount amount-pending">{fmt(s.pendingFees)}</span></td>
@@ -922,6 +923,7 @@ export default function StaffStudents() {
                 <div><div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 2 }}>Phone</div><div>{selectedStudent.phoneNumber}</div></div>
                 <div><div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 2 }}>Course</div><div>{selectedStudent.course?.name}</div></div>
                 <div><div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 2 }}>Qualification</div><div>{selectedStudent.qualification}</div></div>
+                <div><div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 2 }}>Admission Date</div><div>{selectedStudent.enrollmentDate ? new Date(selectedStudent.enrollmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div></div>
                 <div className="full-width"><div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', marginBottom: 2 }}>Address</div><div>{selectedStudent.address}</div></div>
               </div>
               <div style={{ margin: '1rem 0', padding: '1rem', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem' }}>

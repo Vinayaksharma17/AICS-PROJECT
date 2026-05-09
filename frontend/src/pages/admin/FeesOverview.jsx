@@ -90,14 +90,16 @@ export default function FeesOverview() {
             <div className="table-responsive">
               <div className="table-container">
                 <table>
-                  <thead><tr><th>Student</th><th>Course</th><th>Total Fees</th><th>Paid</th><th>Pending</th><th>Progress</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Student</th><th>Course</th><th>Admission Date</th><th>Total Fees</th><th>Paid</th><th>Pending</th><th>Progress</th><th>Status</th></tr></thead>
                   <tbody>
                     {paginated.map(s => {
                       const p = pct(s.paidFees, s.finalFees || s.totalFees);
+                      const admDate = s.enrollmentDate ? new Date(s.enrollmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
                       return (
                         <tr key={s._id}>
                           <td data-label="Student"><div className="td-name">{s.firstName} {s.fatherName} {s.lastName}</div><div className="td-sub">{s.phoneNumber}</div></td>
                           <td data-label="Course">{s.course?.name}</td>
+                          <td data-label="Admission Date">{admDate}</td>
                           <td data-label="Total">{fmt(s.finalFees || s.totalFees)}</td>
                           <td data-label="Paid"><span className="amount amount-paid">{fmt(s.paidFees)}</span></td>
                           <td data-label="Pending"><span className="amount amount-pending">{fmt(s.pendingFees)}</span></td>
