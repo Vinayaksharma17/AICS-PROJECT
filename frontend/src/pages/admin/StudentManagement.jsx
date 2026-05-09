@@ -4,6 +4,24 @@ import 'react-image-crop/dist/ReactCrop.css'
 import api from '../../utils/api'
 
 const BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || ''
+
+const downloadInvoice = async (studentId, studentName) => {
+  try {
+    // Call dedicated invoice endpoint — streams PDF with auth header via axios
+    const response = await api.get(`/students/${studentId}/invoice`, { responseType: 'blob' })
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = `Invoice_${studentName || studentId}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(objectUrl)
+  } catch (err) {
+    console.error('Invoice download failed:', err)
+  }
+}
 const PER_PAGE = 8
 const PAYMENT_METHODS = ['cash', 'upi']
 const MAX_DOC_SIZE = 1 * 1024 * 1024 // 1 MB
@@ -513,6 +531,14 @@ export default function StudentManagement() {
     if (!form.qualification.trim()) e.qualification = 'Required'
     if (!form.course) e.course = 'Select a course'
     if (!form.totalFees) e.totalFees = 'Required'
+    // Coupon applied: must pay full discounted amount upfront
+    if (couponInfo) {
+      const paid = Number(form.initialPayment) || 0
+      const required = couponInfo.finalFees || 0
+      if (paid < required) {
+        e.initialPayment = `Coupon applied — full payment of ₹${required.toLocaleString('en-IN')} required to generate invoice`
+      }
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -591,11 +617,9 @@ export default function StudentManagement() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
-      if (data.invoice && data.invoice.url) {
-        window.open(
-          `${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`,
-          '_blank',
-        )
+      if (data.student?._id) {
+        const name = `${data.student.firstName}_${data.student.lastName}`
+        downloadInvoice(data.student._id, name)
       }
       showAlert('success', 'Student added successfully!')
       setShowModal(false)
@@ -631,12 +655,11 @@ export default function StudentManagement() {
           remarks: paymentForm.remarks,
         },
       )
-      if (data.invoice && data.invoice.url)
-        window.open(
-          `${BASE_URL}${data.invoice.url}?token=${localStorage.getItem('token')}`,
-          '_blank',
-        )
-      showAlert('success', 'Payment recorded! Invoice opened in new tab.')
+      if (selectedStudent?._id) {
+        const name = `${selectedStudent.firstName}_${selectedStudent.lastName}`
+        downloadInvoice(selectedStudent._id, name)
+      }
+      showAlert('success', 'Payment recorded! Invoice downloaded.')
       setShowPaymentModal(false)
       setPaymentForm({ amount: '', paymentMethod: 'cash', remarks: '' })
       fetchStudents()
@@ -738,6 +761,8 @@ export default function StudentManagement() {
       finalFees: Number(editForm.totalFees) - Math.min(selected.amount, Number(editForm.totalFees)),
       discountAmount: Math.min(selected.amount, Number(editForm.totalFees)),
     })
+    // Coupon = full payment only — reset installments
+    setEditNumInstallments('none')
   }
 
   const validateEditCoupon = async () => {
@@ -751,6 +776,7 @@ export default function StudentManagement() {
         courseFees: Number(editForm.totalFees),
       })
       setEditCouponInfo(data)
+      setEditNumInstallments('none') // coupon = full payment only
       showAlert('success', `Coupon applied! ₹${data.amount} off → Final: ₹${data.finalFees.toLocaleString('en-IN')}`)
     } catch (err) {
       showAlert('error', err.response?.data?.message || 'Invalid coupon')
@@ -814,10 +840,14 @@ export default function StudentManagement() {
       if (editDocs.aadharCard)
         formData.append('aadharCard', editDocs.aadharCard)
 
-      await api.put(`/students/${selectedStudent._id}`, formData, {
+      const { data: editData } = await api.put(`/students/${selectedStudent._id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
 
+      if (selectedStudent?._id) {
+        const name = `${editForm.firstName}_${editForm.lastName}`
+        downloadInvoice(selectedStudent._id, name)
+      }
       showAlert('success', 'Student updated successfully!')
       setShowEditModal(false)
       setShowDetailModal(false)
@@ -1094,6 +1124,7 @@ export default function StudentManagement() {
                   <tr>
                     <th>Student</th>
                     <th>Course</th>
+                    <th>Admission Date</th>
                     <th>Total Fees</th>
                     <th>Paid</th>
                     <th>Pending</th>
@@ -1119,6 +1150,9 @@ export default function StudentManagement() {
                       <td data-label="Course">
                         <div>{s.course?.name}</div>
                         <div className="td-sub">{s.courseDuration}m</div>
+                      </td>
+                      <td data-label="Admission Date">
+                        {s.enrollmentDate ? new Date(s.enrollmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                       </td>
                       <td data-label="Total">
                         {fmt(s.finalFees || s.totalFees)}
@@ -2117,6 +2151,24 @@ export default function StudentManagement() {
                     Qualification
                   </div>
                   <div>{selectedStudent.qualification}</div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: 'var(--gray-500)',
+                      textTransform: 'uppercase',
+                      marginBottom: '2px',
+                    }}
+                  >
+                    Admission Date
+                  </div>
+                  <div>
+                    {selectedStudent.enrollmentDate
+                      ? new Date(selectedStudent.enrollmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : '—'}
+                  </div>
                 </div>
                 <div className="full-width">
                   <div
