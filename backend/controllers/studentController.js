@@ -171,7 +171,9 @@ exports.updateStudent = async (req, res) => {
     const student = await Student.findById(req.params.id);
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    const fields = ['firstName','fatherName','lastName','certificateName','phoneNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted','grade'];
+    const fields = ['firstName','fatherName','lastName','certificateName','phoneNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted','grade','certificateNumber'];
+    if (req.body.certificateIssuedDate) student.certificateIssuedDate = new Date(req.body.certificateIssuedDate);
+    if (req.body.courseEndDate) student.courseEndDate = new Date(req.body.courseEndDate);
     fields.forEach(f => { if (req.body[f] !== undefined) student[f] = req.body[f]; });
 
     if (req.body.admissionDate) {
