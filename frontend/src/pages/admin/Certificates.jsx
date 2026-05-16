@@ -13,6 +13,13 @@ export default function Certificates() {
   const [generating, setGenerating] = useState(null);
   const [gradeMap, setGradeMap] = useState({});
 
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editStudent, setEditStudent] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [courses, setCourses] = useState([]);
+  const [saving, setSaving] = useState(false);
+
   const fetchStudents = useCallback(async () => {
     try {
       const [eligibleRes, issuedRes] = await Promise.all([
@@ -30,7 +37,47 @@ export default function Certificates() {
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
+  useEffect(() => {
+    api.get('/courses').then(r => setCourses(r.data || [])).catch(() => {});
+  }, []);
+
   const showAlert = (type, msg) => { setAlert({ type, message: msg }); setTimeout(() => setAlert(null), 4000); };
+
+  const openEdit = (s) => {
+    setEditStudent(s);
+    setEditForm({
+      firstName:            s.firstName || '',
+      fatherName:           s.fatherName || '',
+      lastName:             s.lastName || '',
+      course:               s.course?._id || s.course || '',
+      certificateNumber:    s.certificateNumber || '',
+      admissionDate:        s.enrollmentDate ? s.enrollmentDate.split('T')[0] : '',
+      courseEndDate:        s.courseEndDate  ? s.courseEndDate.split('T')[0]  : '',
+      certificateIssuedDate: s.certificateIssuedDate ? s.certificateIssuedDate.split('T')[0] : '',
+    });
+    setShowEditModal(true);
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/students/${editStudent._id}`, {
+        firstName:             editForm.firstName,
+        fatherName:            editForm.fatherName,
+        lastName:              editForm.lastName,
+        course:                editForm.course,
+        certificateNumber:     editForm.certificateNumber,
+        admissionDate:         editForm.admissionDate,
+        courseEndDate:         editForm.courseEndDate,
+        certificateIssuedDate: editForm.certificateIssuedDate,
+      });
+      showAlert('success', 'Student details updated successfully!');
+      setShowEditModal(false);
+      fetchStudents();
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to save changes');
+    } finally { setSaving(false); }
+  };
 
   const checkEligibility = (s) => {
     const fullPaid = (s.pendingFees || 0) === 0;
@@ -189,8 +236,9 @@ export default function Certificates() {
                             )}
                           </td>
                           <td data-label="Action">
-                            {(status === 'eligible' || status === 'issued') && (
-                              <div style={{display:'flex',flexDirection:'column',gap:'0.3rem',alignItems:'flex-start'}}>
+                            <div style={{display:'flex',flexDirection:'column',gap:'0.3rem',alignItems:'flex-start'}}>
+                              <button className="btn btn-sm btn-warning" onClick={() => openEdit(s)}>✏️ Edit</button>
+                              {(status === 'eligible' || status === 'issued') && (<>
                                 <select
                                   value={gradeMap[s._id] || s.grade || 'A'}
                                   onChange={e => setGradeMap(m=>({...m,[s._id]:e.target.value}))}
@@ -208,8 +256,8 @@ export default function Certificates() {
                                     {generating === s._id ? '⏳' : '🔄 Re-print'}
                                   </button>
                                 )}
-                              </div>
-                            )}
+                              </>)}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -233,6 +281,62 @@ export default function Certificates() {
           </div>
         )}
       </div>
+      {/* ── EDIT MODAL ─────────────────────────────────────────────────────── */}
+      {showEditModal && editStudent && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowEditModal(false)}>
+          <div className="modal modal-lg">
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ Edit Certificate Details</h3>
+              <button className="modal-close" onClick={() => setShowEditModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">First Name</label>
+                  <input className="form-input" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Father's Name</label>
+                  <input className="form-input" value={editForm.fatherName} onChange={e => setEditForm({...editForm, fatherName: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Last Name</label>
+                  <input className="form-input" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Course</label>
+                  <select className="form-select" value={editForm.course} onChange={e => setEditForm({...editForm, course: e.target.value})}>
+                    <option value="">— Select Course —</option>
+                    {courses.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Certificate Number</label>
+                  <input className="form-input" placeholder="e.g. 24AICES001" value={editForm.certificateNumber} onChange={e => setEditForm({...editForm, certificateNumber: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Admission Date</label>
+                  <input type="date" className="form-input" value={editForm.admissionDate} onChange={e => setEditForm({...editForm, admissionDate: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Course End Date</label>
+                  <input type="date" className="form-input" value={editForm.courseEndDate} onChange={e => setEditForm({...editForm, courseEndDate: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Certificate Issued Date</label>
+                  <input type="date" className="form-input" value={editForm.certificateIssuedDate} onChange={e => setEditForm({...editForm, certificateIssuedDate: e.target.value})} />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowEditModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveEdit} disabled={saving}>
+                {saving ? '⏳ Saving...' : '💾 Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
