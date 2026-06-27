@@ -11,6 +11,7 @@ const studentSchema = new mongoose.Schema({
   address:       { type: String, required: [true, 'Please add address'] },
   qualification: { type: String, required: [true, 'Please add qualification'] },
   phoneNumber:   { type: String, required: [true, 'Please add phone number'], match: [/^[0-9]{10}$/, 'Please add a valid 10-digit phone number'] },
+  aadhaarNumber: { type: String, required: [true, 'Please add aadhaar number'], match: [/^[0-9]{12}$/, 'Please add a valid 12-digit aadhaar number'] },
   email:         { type: String, trim: true, lowercase: true, match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email'] },
 
   // Specific Document Uploads (Issue #2)
@@ -76,7 +77,19 @@ const studentSchema = new mongoose.Schema({
   invoiceUrl:       String,
 
   addedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+
+  // Course upgrade audit trail
+  courseUpgrades: [{
+    previousCourse:  { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
+    previousDuration: Number,
+    previousFees: Number,
+    newCourse:  { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
+    newDuration: Number,
+    newFees: Number,
+    upgradedAt: { type: Date, default: Date.now },
+    upgradedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }]
 });
 
 studentSchema.virtual('fullName').get(function() {

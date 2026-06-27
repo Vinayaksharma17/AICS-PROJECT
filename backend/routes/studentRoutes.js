@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
   addStudent, getAllStudents, getStudent,
-  updateStudent, deleteStudent, addPayment, uploadDocument, downloadInvoice
+  updateStudent, deleteStudent, addPayment, uploadDocument, downloadInvoice,
+  upgradeCourse
 } = require('../controllers/studentController');
 const { protect, adminOrStaff, adminOnly } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -23,5 +24,6 @@ router.get('/:id/invoice', adminOrStaff, downloadInvoice);
 router.post('/:id/payment', adminOrStaff, addPayment);
 // Support both named-fields upload and single file upload
 router.post('/:id/upload-document', adminOrStaff, uploadStudentDocs, uploadDocument);
+router.put('/:id/upgrade', adminOrStaff, upgradeCourse);
 
 module.exports = router;

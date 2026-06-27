@@ -36,6 +36,7 @@ const emptyForm = {
   address: '',
   qualification: '',
   phoneNumber: '',
+  aadhaarNumber: '',
   email: '',
   course: '',
   couponCode: '',
@@ -502,6 +503,13 @@ export default function StaffStudents() {
   const [uploadDocModal, setUploadDocModal] = useState(emptyDocs)
   const [uploadDocPreviews, setUploadDocPreviews] = useState(emptyPreviews)
 
+  // Upgrade flow state
+  const [isUpgradeMode, setIsUpgradeMode] = useState(false)
+  const [showUpgradeConfirm, setShowUpgradeConfirm] = useState(false)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [duplicateData, setDuplicateData] = useState(null)
+  const [upgradeTarget, setUpgradeTarget] = useState(null)
+
   /* ── Data fetching ─────────────────────────────────────────────────────── */
   const fetchStudents = useCallback(async () => {
     try {
@@ -697,13 +705,15 @@ export default function StaffStudents() {
 
   const validate = () => {
     const e = {}
-    if (!form.firstName.trim()) e.firstName = 'Required'
-    // if (!form.fatherName.trim()) e.fatherName = 'Required';
-    // if (!form.lastName.trim()) e.lastName = 'Required';
-    if (!form.phoneNumber.match(/^[0-9]{10}$/))
-      e.phoneNumber = 'Enter valid 10-digit number'
-    if (!form.address.trim()) e.address = 'Required'
-    if (!form.qualification.trim()) e.qualification = 'Required'
+    if (!isUpgradeMode) {
+      if (!form.firstName.trim()) e.firstName = 'Required'
+      if (!form.phoneNumber.match(/^[0-9]{10}$/))
+        e.phoneNumber = 'Enter valid 10-digit number'
+      if (!form.aadhaarNumber.match(/^[0-9]{12}$/))
+        e.aadhaarNumber = 'Enter valid 12-digit aadhaar number'
+      if (!form.address.trim()) e.address = 'Required'
+      if (!form.qualification.trim()) e.qualification = 'Required'
+    }
     if (!form.course) e.course = 'Select a course'
     if (!form.totalFees) e.totalFees = 'Required'
     // Coupon applied: must pay full discounted amount upfront
@@ -747,8 +757,26 @@ export default function StaffStudents() {
     setPreviews((p) => ({ ...p, [field]: null }))
   }
 
+  const resetFormState = () => {
+    enquiryIdRef.current = null
+    setShowModal(false)
+    setForm(emptyForm)
+    setCouponInfo(null)
+    setFinalFees(0)
+    setDocs(emptyDocs)
+    setPreviews(emptyPreviews)
+    setIsUpgradeMode(false)
+    setUpgradeTarget(null)
+    setDuplicateData(null)
+    setShowUpgradeConfirm(false)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (isUpgradeMode) {
+      await handleUpgradeSubmit()
+      return
+    }
     if (!validate()) return
     setSubmitting(true)
     try {
@@ -763,6 +791,7 @@ export default function StaffStudents() {
         'address',
         'qualification',
         'phoneNumber',
+        'aadhaarNumber',
         'email',
       ].forEach((k) => fd.append(k, form[k].trim()))
       fd.append('course', form.course)
@@ -790,15 +819,16 @@ export default function StaffStudents() {
         )
       enquiryIdRef.current = null
       showAlert('success', 'Student added successfully!')
-      setShowModal(false)
-      setForm(emptyForm)
-      setCouponInfo(null)
-      setFinalFees(0)
-      setDocs(emptyDocs)
-      setPreviews(emptyPreviews)
+      resetFormState()
       fetchStudents()
     } catch (err) {
-      showAlert('error', err.response?.data?.message || 'Failed to add student')
+      const errData = err.response?.data
+      if (errData?.code === 'DUPLICATE_AADHAAR') {
+        setDuplicateData(errData.existingStudent)
+        setShowUpgradeConfirm(true)
+      } else {
+        showAlert('error', errData?.message || 'Failed to add student')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -917,6 +947,7 @@ export default function StaffStudents() {
       lastName: student.lastName || '',
       certificateName: student.certificateName || '',
       phoneNumber: student.phoneNumber || '',
+      aadhaarNumber: student.aadhaarNumber || '',
       email: student.email || '',
       address: student.address || '',
       qualification: student.qualification || '',
@@ -1081,6 +1112,8 @@ export default function StaffStudents() {
     // if (!editForm.lastName.trim()) e.lastName = 'Required';
     if (!editForm.phoneNumber.match(/^[0-9]{10}$/))
       e.phoneNumber = 'Enter valid 10-digit number'
+    if (!editForm.aadhaarNumber.match(/^[0-9]{12}$/))
+      e.aadhaarNumber = 'Enter valid 12-digit aadhaar number'
     if (!editForm.address.trim()) e.address = 'Required'
     if (!editForm.qualification.trim()) e.qualification = 'Required'
     if (!editForm.course) e.course = 'Select a course'
@@ -1103,6 +1136,7 @@ export default function StaffStudents() {
       fd.append('address', editForm.address.trim())
       fd.append('qualification', editForm.qualification.trim())
       fd.append('phoneNumber', editForm.phoneNumber.trim())
+      fd.append('aadhaarNumber', editForm.aadhaarNumber.trim())
       fd.append('email', editForm.email.trim())
       fd.append('course', editForm.course)
       fd.append('totalFees', Number(editForm.totalFees))
@@ -1158,6 +1192,65 @@ export default function StaffStudents() {
         'error',
         err.response?.data?.message || 'Failed to update student',
       )
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Upgrade course handlers
+  const openUpgradeModal = (student) => {
+    setShowUpgradeConfirm(false)
+    const target = student || duplicateData
+    setUpgradeTarget(target)
+    const currentCourseId = typeof target.course === 'object' ? target.course._id : target.course
+    setIsUpgradeMode(true)
+    setForm({
+      ...emptyForm,
+      firstName: target.firstName || '',
+      fatherName: target.fatherName || '',
+      lastName: target.lastName || '',
+      certificateName: target.certificateName || '',
+      phoneNumber: target.phoneNumber || '',
+      aadhaarNumber: target.aadhaarNumber || '',
+      email: target.email || '',
+      address: target.address || '',
+      qualification: target.qualification || '',
+      course: currentCourseId,
+      totalFees: String(target.finalFees || target.totalFees || ''),
+      courseDuration: String(target.courseDuration || ''),
+    })
+    setCouponInfo(null)
+    setFinalFees(target.finalFees || target.totalFees || 0)
+    setErrors({})
+    setDocs(emptyDocs)
+    setPreviews(emptyPreviews)
+    setShowModal(true)
+  }
+
+  const handleUpgradeSubmit = async () => {
+    if (!upgradeTarget) return
+    if (!validate()) { setSubmitting(false); return }
+    setSubmitting(true)
+    try {
+      const installments = buildInstallments()
+      const { data } = await api.put(`/students/${upgradeTarget._id}/upgrade`, {
+        newCourse: form.course,
+        newDuration: Number(form.courseDuration),
+        newFees: Number(form.totalFees),
+        paidFees: Number(form.initialPayment) || 0,
+        paymentMethod: form.initialPaymentMethod || 'cash',
+        couponCode: form.couponCode || '',
+        admissionDate: form.admissionDate || '',
+        installments,
+      })
+      showAlert('success', 'Course upgraded successfully!')
+      if (data.student?.paidFees > 0) {
+        downloadInvoice(data.student._id, `${data.student.firstName}_${data.student.lastName}`)
+      }
+      resetFormState()
+      fetchStudents()
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to upgrade course')
     } finally {
       setSubmitting(false)
     }
@@ -1324,14 +1417,16 @@ export default function StaffStudents() {
                         <div className="td-sub">{s.phoneNumber}</div>
                         {s.discount?.couponCode && (
                           <div className="td-sub">
-                            🏷️ {s.discount.couponCode} ({s.discount.percentage}
-                            %)
+                            🏷️ {s.discount.couponCode} (₹{s.discount.appliedAmount || s.discount.amount})
                           </div>
                         )}
                       </td>
                       <td data-label="Course">
                         <div>{s.course?.name}</div>
                         <div className="td-sub">{s.courseDuration}m</div>
+                        {s.courseUpgrades?.length > 0 && (
+                          <span className="badge badge-info" style={{ marginTop: 2, fontSize: '0.7rem' }}>Upgraded</span>
+                        )}
                       </td>
                       <td data-label="Admission Date">
                         {s.enrollmentDate
@@ -1414,6 +1509,18 @@ export default function StaffStudents() {
                             ✏️ Edit
                           </button>
                         )}
+                        <button
+                          className="btn btn-sm btn-info"
+                          onClick={() => openUpgradeModal(s)}
+                          title={
+                            s.paidFees < (s.finalFees || s.totalFees)
+                              ? 'Complete fee payment before upgrading'
+                              : 'Upgrade course'
+                          }
+                          disabled={s.paidFees < (s.finalFees || s.totalFees)}
+                        >
+                          🚀 Upgrade
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1460,17 +1567,19 @@ export default function StaffStudents() {
         )}
       </div>
 
-      {/* ── ADD STUDENT MODAL ──────────────────────────────────────────────── */}
+      {/* ── ADD STUDENT / UPGRADE MODAL ──────────────────────────────────── */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal modal-lg">
             <div className="modal-header">
-              <h3 className="modal-title">➕ Add New Student</h3>
+              <h3 className="modal-title">
+                {isUpgradeMode ? '🔄 Upgrade Course' : '➕ Add New Student'}
+              </h3>
               <button
                 className="modal-close"
                 onClick={() => {
                   enquiryIdRef.current = null
-                  setShowModal(false)
+                  resetFormState()
                 }}
               >
                 ✕
@@ -1478,6 +1587,29 @@ export default function StaffStudents() {
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
+                {isUpgradeMode && upgradeTarget && (
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      marginBottom: '1rem',
+                      background: '#eef2ff',
+                      border: '1px solid #6366f1',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.875rem',
+                      color: '#4338ca',
+                    }}
+                  >
+                    Upgrading:{' '}
+                    <strong>
+                      {upgradeTarget.firstName} {upgradeTarget.fatherName}{' '}
+                      {upgradeTarget.lastName}
+                    </strong>{' '}
+                    — Current:{' '}
+                    {upgradeTarget.course?.name || 'N/A'} (
+                    {upgradeTarget.courseDuration}m) — Paid: ₹
+                    {(upgradeTarget.paidFees || 0).toLocaleString('en-IN')}
+                  </div>
+                )}
                 <div className="form-grid">
                   <div
                     style={{ gridColumn: '1 / -1' }}
@@ -1493,6 +1625,7 @@ export default function StaffStudents() {
                       className={`form-input ${errors.firstName ? 'error' : ''}`}
                       placeholder="e.g. Rahul"
                       value={form.firstName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, firstName: e.target.value })
                       }
@@ -1507,6 +1640,7 @@ export default function StaffStudents() {
                       className={`form-input ${errors.fatherName ? 'error' : ''}`}
                       placeholder="e.g. Suresh"
                       value={form.fatherName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, fatherName: e.target.value })
                       }
@@ -1521,6 +1655,7 @@ export default function StaffStudents() {
                       className={`form-input ${errors.lastName ? 'error' : ''}`}
                       placeholder="e.g. Kumar"
                       value={form.lastName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, lastName: e.target.value })
                       }
@@ -1535,6 +1670,7 @@ export default function StaffStudents() {
                       className="form-input"
                       placeholder="Name as it should appear on certificate (optional)"
                       value={form.certificateName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, certificateName: e.target.value })
                       }
@@ -1552,6 +1688,7 @@ export default function StaffStudents() {
                       placeholder="10-digit"
                       maxLength={10}
                       value={form.phoneNumber}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({
                           ...form,
@@ -1564,12 +1701,34 @@ export default function StaffStudents() {
                     )}
                   </div>
                   <div className="form-group">
+                    <label className="form-label">
+                      Aadhaar Number <span className="required">*</span>
+                    </label>
+                    <input
+                      className={`form-input ${errors.aadhaarNumber ? 'error' : ''}`}
+                      placeholder="12-digit aadhaar number"
+                      maxLength={12}
+                      value={form.aadhaarNumber}
+                      disabled={isUpgradeMode}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          aadhaarNumber: e.target.value.replace(/\D/g, ''),
+                        })
+                      }
+                    />
+                    {errors.aadhaarNumber && (
+                      <span className="form-error">{errors.aadhaarNumber}</span>
+                    )}
+                  </div>
+                  <div className="form-group">
                     <label className="form-label">Email</label>
                     <input
                       type="email"
                       className="form-input"
                       placeholder="Optional"
                       value={form.email}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, email: e.target.value })
                       }
@@ -1583,6 +1742,7 @@ export default function StaffStudents() {
                       className={`form-input ${errors.qualification ? 'error' : ''}`}
                       placeholder="e.g. B.Tech CSE"
                       value={form.qualification}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({
                           ...form,
@@ -1606,6 +1766,7 @@ export default function StaffStudents() {
                       placeholder="Full address"
                       rows={2}
                       value={form.address}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, address: e.target.value })
                       }
@@ -1917,58 +2078,59 @@ export default function StaffStudents() {
                     </span>
                   </div>
 
-                  <div
-                    style={{ gridColumn: '1 / -1' }}
-                    className="form-section-title"
-                  >
-                    Document Uploads
-                  </div>
-                  <DocFieldRow
-                    field="studentPhoto"
-                    label="🖼️ Student Photo"
-                    hint="Clear passport-size photo (JPG, PNG) · Max 1 MB"
-                    accept="image/jpeg,image/jpg,image/png"
-                    preview={previews.studentPhoto}
-                    docFile={docs.studentPhoto}
-                    onChange={handleDocChange}
-                    cameraOk={true}
-                    onCamera={setCameraField}
-                    onDelete={handleDocDelete}
-                  />
-                  <DocFieldRow
-                    field="qualificationDoc"
-                    label="📜 Qualification Document"
-                    hint="Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    preview={previews.qualificationDoc}
-                    docFile={docs.qualificationDoc}
-                    onChange={handleDocChange}
-                    cameraOk={true}
-                    onCamera={setCameraField}
-                    onDelete={handleDocDelete}
-                  />
-                  <DocFieldRow
-                    field="aadharCard"
-                    label="🪪 Aadhar Card"
-                    hint="Front side of Aadhar card (JPG, PNG) · Max 1 MB"
-                    accept="image/jpeg,image/jpg,image/png"
-                    preview={previews.aadharCard}
-                    docFile={docs.aadharCard}
-                    onChange={handleDocChange}
-                    cameraOk={true}
-                    onCamera={setCameraField}
-                    onDelete={handleDocDelete}
-                  />
+                  {!isUpgradeMode && (
+                    <>
+                      <div
+                        style={{ gridColumn: '1 / -1' }}
+                        className="form-section-title"
+                      >
+                        Document Uploads
+                      </div>
+                      <DocFieldRow
+                        field="studentPhoto"
+                        label="🖼️ Student Photo"
+                        hint="Clear passport-size photo (JPG, PNG) · Max 1 MB"
+                        accept="image/jpeg,image/jpg,image/png"
+                        preview={previews.studentPhoto}
+                        docFile={docs.studentPhoto}
+                        onChange={handleDocChange}
+                        cameraOk={true}
+                        onCamera={setCameraField}
+                        onDelete={handleDocDelete}
+                      />
+                      <DocFieldRow
+                        field="qualificationDoc"
+                        label="📜 Qualification Document"
+                        hint="Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        preview={previews.qualificationDoc}
+                        docFile={docs.qualificationDoc}
+                        onChange={handleDocChange}
+                        cameraOk={true}
+                        onCamera={setCameraField}
+                        onDelete={handleDocDelete}
+                      />
+                      <DocFieldRow
+                        field="aadharCard"
+                        label="🪪 Aadhar Card"
+                        hint="Front side of Aadhar card (JPG, PNG) · Max 1 MB"
+                        accept="image/jpeg,image/jpg,image/png"
+                        preview={previews.aadharCard}
+                        docFile={docs.aadharCard}
+                        onChange={handleDocChange}
+                        cameraOk={true}
+                        onCamera={setCameraField}
+                        onDelete={handleDocDelete}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
                 <button
                   type="button"
                   className="btn btn-outline"
-                  onClick={() => {
-                    enquiryIdRef.current = null
-                    setShowModal(false)
-                  }}
+                  onClick={resetFormState}
                 >
                   Cancel
                 </button>
@@ -1977,7 +2139,11 @@ export default function StaffStudents() {
                   className="btn btn-primary"
                   disabled={submitting}
                 >
-                  {submitting ? '⏳ Adding...' : '✅ Student Admission'}
+                  {submitting
+                    ? '⏳ Saving...'
+                    : isUpgradeMode
+                      ? '🔄 Upgrade Course'
+                      : '✅ Student Admission'}
                 </button>
               </div>
             </form>
@@ -2858,6 +3024,28 @@ export default function StaffStudents() {
                     )}
                   </div>
                   <div className="form-group">
+                    <label className="form-label">
+                      Aadhaar Number <span className="required">*</span>
+                    </label>
+                    <input
+                      className={`form-input ${editErrors.aadhaarNumber ? 'error' : ''}`}
+                      placeholder="12-digit aadhaar number"
+                      maxLength={12}
+                      value={editForm.aadhaarNumber}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          aadhaarNumber: e.target.value.replace(/\D/g, ''),
+                        })
+                      }
+                    />
+                    {editErrors.aadhaarNumber && (
+                      <span className="form-error">
+                        {editErrors.aadhaarNumber}
+                      </span>
+                    )}
+                  </div>
+                  <div className="form-group">
                     <label className="form-label">Email</label>
                     <input
                       type="email"
@@ -3002,8 +3190,8 @@ export default function StaffStudents() {
                         className="discount-badge"
                         style={{ marginBottom: '0.5rem' }}
                       >
-                        🏷️ Applied: {selectedStudent.discount.couponCode} (
-                        {selectedStudent.discount.percentage}% off)
+                        🏷️ Applied: {selectedStudent.discount.couponCode} (₹
+                        {selectedStudent.discount.appliedAmount || selectedStudent.discount.amount} off)
                       </div>
                     </div>
                   )}
@@ -3436,6 +3624,91 @@ export default function StaffStudents() {
           onCrop={(file) => handleEditCropApply(editCropModal.field, file)}
           onClose={() => setEditCropModal(null)}
         />
+      )}
+
+      {/* ── UPGRADE CONFIRMATION MODAL ────────────────────────────────────── */}
+      {!isUpgradeMode && showUpgradeConfirm && duplicateData && (
+        <div
+          className="modal-overlay"
+          onClick={(e) =>
+            e.target === e.currentTarget && resetFormState()
+          }
+        >
+          <div className="modal modal-sm">
+            <div className="modal-header">
+              <h3 className="modal-title">🔄 Aadhaar Already Registered</h3>
+              <button
+                className="modal-close"
+                onClick={resetFormState}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div
+                style={{
+                  padding: '1rem',
+                  background: '#fef3c7',
+                  border: '1px solid #f59e0b',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '1rem',
+                }}
+              >
+                <strong>Aadhaar {form.aadhaarNumber}</strong> is already
+                registered to:
+              </div>
+              <div
+                style={{
+                  padding: '1rem',
+                  background: 'var(--gray-50)',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '1rem',
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
+                  {duplicateData.firstName} {duplicateData.fatherName}{' '}
+                  {duplicateData.lastName}
+                </div>
+                <div
+                  style={{ color: 'var(--gray-500)', marginTop: '0.25rem' }}
+                >
+                  {duplicateData.phoneNumber}
+                </div>
+                <div
+                  style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem',
+                    background: '#e0f2fe',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  Currently enrolled in{' '}
+                  <strong>
+                    {duplicateData.course?.name ||
+                      duplicateData.course?.toString()}
+                  </strong>{' '}
+                  ({duplicateData.courseDuration} months)
+                </div>
+              </div>
+              <p>
+                Would you like to upgrade their course instead of creating a
+                duplicate record?
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-outline"
+                onClick={resetFormState}
+              >
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={openUpgradeModal}>
+                🔄 Upgrade Course
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

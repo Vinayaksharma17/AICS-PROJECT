@@ -366,7 +366,7 @@ const generateInvoice = async (student, invoiceNumber) => {
           // Left label
           doc.fontSize(9).fillColor(labelClr).font('Helvetica-Bold')
           doc.text(
-            isOverdue ? '⚠  OVERDUE PAYMENT' : '📅  NEXT INSTALLMENT DUE',
+            isOverdue ? 'OVERDUE PAYMENT' : 'NEXT INSTALLMENT DUE',
             40,
             instY + 5,
           )
@@ -546,7 +546,7 @@ const generateInvoice = async (student, invoiceNumber) => {
           .fontSize(8)
           .fillColor(isOvd ? '#dc2626' : '#1e40af')
           .font('Helvetica-Bold')
-        doc.text(isOvd ? '⚠ Overdue:' : '📅 Next Due:', 315, summaryY + 62)
+        doc.text(isOvd ? 'Overdue:' : 'Next Due:', 315, summaryY + 62)
         doc.text(
           `${nextDueDateStr}  —  Rs.${nextInstallment.amount.toLocaleString('en-IN')}`,
           370,

@@ -286,6 +286,7 @@ const emptyForm = {
   address: '',
   qualification: '',
   phoneNumber: '',
+  aadhaarNumber: '',
   email: '',
   course: '',
   couponCode: '',
@@ -360,6 +361,13 @@ export default function StudentManagement() {
     aadharCard: null,
   })
   const [uploadDocPreviews, setUploadDocPreviews] = useState(emptyPreviews)
+
+  // Upgrade flow state
+  const [isUpgradeMode, setIsUpgradeMode] = useState(false)
+  const [showUpgradeConfirm, setShowUpgradeConfirm] = useState(false)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [duplicateData, setDuplicateData] = useState(null)
+  const [upgradeTarget, setUpgradeTarget] = useState(null)
 
   const fetchStudents = useCallback(async () => {
     try {
@@ -567,11 +575,15 @@ export default function StudentManagement() {
 
   const validate = () => {
     const e = {}
-    if (!form.firstName.trim()) e.firstName = 'Required'
-    if (!form.phoneNumber.match(/^[0-9]{10}$/))
-      e.phoneNumber = 'Enter valid 10-digit number'
-    if (!form.address.trim()) e.address = 'Required'
-    if (!form.qualification.trim()) e.qualification = 'Required'
+    if (!isUpgradeMode) {
+      if (!form.firstName.trim()) e.firstName = 'Required'
+      if (!form.phoneNumber.match(/^[0-9]{10}$/))
+        e.phoneNumber = 'Enter valid 10-digit number'
+      if (!form.aadhaarNumber.match(/^[0-9]{12}$/))
+        e.aadhaarNumber = 'Enter valid 12-digit aadhaar number'
+      if (!form.address.trim()) e.address = 'Required'
+      if (!form.qualification.trim()) e.qualification = 'Required'
+    }
     if (!form.course) e.course = 'Select a course'
     if (!form.totalFees) e.totalFees = 'Required'
     // Coupon applied: must pay full discounted amount upfront
@@ -619,8 +631,26 @@ export default function StudentManagement() {
     setPreviews((p) => ({ ...p, [field]: null }))
   }
 
+  const resetFormState = () => {
+    enquiryIdRef.current = null
+    setShowModal(false)
+    setForm(emptyForm)
+    setCouponInfo(null)
+    setFinalFees(0)
+    setDocs(emptyDocs)
+    setPreviews(emptyPreviews)
+    setIsUpgradeMode(false)
+    setUpgradeTarget(null)
+    setDuplicateData(null)
+    setShowUpgradeConfirm(false)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (isUpgradeMode) {
+      await handleUpgradeSubmit()
+      return
+    }
     if (!validate()) return
     setSubmitting(true)
     try {
@@ -637,6 +667,7 @@ export default function StudentManagement() {
       formData.append('address', form.address.trim())
       formData.append('qualification', form.qualification.trim())
       formData.append('phoneNumber', form.phoneNumber.trim())
+      formData.append('aadhaarNumber', form.aadhaarNumber.trim())
       formData.append('email', form.email.trim())
       formData.append('course', form.course)
       formData.append('totalFees', Number(form.totalFees))
@@ -668,15 +699,16 @@ export default function StudentManagement() {
       }
       enquiryIdRef.current = null
       showAlert('success', 'Student added successfully!')
-      setShowModal(false)
-      setForm(emptyForm)
-      setCouponInfo(null)
-      setFinalFees(0)
-      setDocs(emptyDocs)
-      setPreviews(emptyPreviews)
+      resetFormState()
       fetchStudents()
     } catch (err) {
-      showAlert('error', err.response?.data?.message || 'Failed to add student')
+      const errData = err.response?.data
+      if (errData?.code === 'DUPLICATE_AADHAAR') {
+        setDuplicateData(errData.existingStudent)
+        setShowUpgradeConfirm(true)
+      } else {
+        showAlert('error', errData?.message || 'Failed to add student')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -852,6 +884,8 @@ export default function StudentManagement() {
     // if (!editForm.lastName.trim()) e.lastName = 'Required';
     if (!editForm.phoneNumber.match(/^[0-9]{10}$/))
       e.phoneNumber = 'Enter valid 10-digit number'
+    if (!editForm.aadhaarNumber.match(/^[0-9]{12}$/))
+      e.aadhaarNumber = 'Enter valid 12-digit aadhaar number'
     if (!editForm.address.trim()) e.address = 'Required'
     if (!editForm.qualification.trim()) e.qualification = 'Required'
     if (!editForm.course) e.course = 'Select a course'
@@ -874,6 +908,7 @@ export default function StudentManagement() {
       formData.append('address', editForm.address.trim())
       formData.append('qualification', editForm.qualification.trim())
       formData.append('phoneNumber', editForm.phoneNumber.trim())
+      formData.append('aadhaarNumber', editForm.aadhaarNumber.trim())
       formData.append('email', editForm.email.trim())
       formData.append('course', editForm.course)
       formData.append('totalFees', Number(editForm.totalFees))
@@ -1022,6 +1057,7 @@ export default function StudentManagement() {
       lastName: student.lastName || '',
       certificateName: student.certificateName || '',
       phoneNumber: student.phoneNumber || '',
+      aadhaarNumber: student.aadhaarNumber || '',
       email: student.email || '',
       address: student.address || '',
       qualification: student.qualification || '',
@@ -1064,6 +1100,65 @@ export default function StudentManagement() {
     setEditInitialPaymentMethod(lastPayment?.paymentMethod || 'cash')
 
     setShowEditModal(true)
+  }
+
+  // Upgrade course handlers
+  const openUpgradeModal = (student) => {
+    setShowUpgradeConfirm(false)
+    const target = student || duplicateData
+    setUpgradeTarget(target)
+    const currentCourseId = typeof target.course === 'object' ? target.course._id : target.course
+    setIsUpgradeMode(true)
+    setForm({
+      ...emptyForm,
+      firstName: target.firstName || '',
+      fatherName: target.fatherName || '',
+      lastName: target.lastName || '',
+      certificateName: target.certificateName || '',
+      phoneNumber: target.phoneNumber || '',
+      aadhaarNumber: target.aadhaarNumber || '',
+      email: target.email || '',
+      address: target.address || '',
+      qualification: target.qualification || '',
+      course: currentCourseId,
+      totalFees: String(target.finalFees || target.totalFees || ''),
+      courseDuration: String(target.courseDuration || ''),
+    })
+    setCouponInfo(null)
+    setFinalFees(target.finalFees || target.totalFees || 0)
+    setErrors({})
+    setDocs(emptyDocs)
+    setPreviews(emptyPreviews)
+    setShowModal(true)
+  }
+
+  const handleUpgradeSubmit = async () => {
+    if (!upgradeTarget) return
+    if (!validate()) return
+    setSubmitting(true)
+    try {
+      const installments = buildInstallments()
+      const { data } = await api.put(`/students/${upgradeTarget._id}/upgrade`, {
+        newCourse: form.course,
+        newDuration: Number(form.courseDuration),
+        newFees: Number(form.totalFees),
+        paidFees: Number(form.initialPayment) || 0,
+        paymentMethod: form.initialPaymentMethod || 'cash',
+        couponCode: form.couponCode || '',
+        admissionDate: form.admissionDate || '',
+        installments,
+      })
+      showAlert('success', 'Course upgraded successfully!')
+      if (data.student?.paidFees > 0) {
+        downloadInvoice(data.student._id, `${data.student.firstName}_${data.student.lastName}`)
+      }
+      resetFormState()
+      fetchStudents()
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to upgrade course')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN')}`
@@ -1231,13 +1326,16 @@ export default function StudentManagement() {
                         <div className="td-sub">{s.phoneNumber}</div>
                         {s.discount?.couponCode && (
                           <div className="td-sub">
-                            🏷️ {s.discount.couponCode} (₹{s.discount.amount})
+                            🏷️ {s.discount.couponCode} (₹{s.discount.appliedAmount || s.discount.amount})
                           </div>
                         )}
                       </td>
                       <td data-label="Course">
                         <div>{s.course?.name}</div>
                         <div className="td-sub">{s.courseDuration}m</div>
+                        {s.courseUpgrades?.length > 0 && (
+                          <span className="badge badge-info" style={{ marginTop: 2, fontSize: '0.7rem' }}>Upgraded</span>
+                        )}
                       </td>
                       <td data-label="Admission Date">
                         {s.enrollmentDate
@@ -1328,6 +1426,18 @@ export default function StudentManagement() {
                             ✏️ Edit
                           </button>
                         )}
+                        <button
+                          className="btn btn-sm btn-info"
+                          onClick={() => openUpgradeModal(s)}
+                          title={
+                            s.paidFees < (s.finalFees || s.totalFees)
+                              ? 'Complete fee payment before upgrading'
+                              : 'Upgrade course'
+                          }
+                          disabled={s.paidFees < (s.finalFees || s.totalFees)}
+                        >
+                          🚀 Upgrade
+                        </button>
                         {/*<button
                            className="btn btn-sm btn-danger"
                            onClick={() => handleDelete(s._id)}
@@ -1380,24 +1490,46 @@ export default function StudentManagement() {
         )}
       </div>
 
-      {/* ADD STUDENT MODAL */}
+      {/* ADD STUDENT / UPGRADE MODAL */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal modal-lg">
             <div className="modal-header">
-              <h3 className="modal-title">➕ Add New Student</h3>
+              <h3 className="modal-title">
+                {isUpgradeMode ? '🔄 Upgrade Course' : '➕ Add New Student'}
+              </h3>
               <button
                 className="modal-close"
-                onClick={() => {
-                  enquiryIdRef.current = null
-                  setShowModal(false)
-                }}
+                onClick={resetFormState}
               >
                 ✕
               </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
+                {isUpgradeMode && upgradeTarget && (
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      marginBottom: '1rem',
+                      background: '#eef2ff',
+                      border: '1px solid #6366f1',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.875rem',
+                      color: '#4338ca',
+                    }}
+                  >
+                    Upgrading:{' '}
+                    <strong>
+                      {upgradeTarget.firstName} {upgradeTarget.fatherName}{' '}
+                      {upgradeTarget.lastName}
+                    </strong>{' '}
+                    — Current:{' '}
+                    {upgradeTarget.course?.name || 'N/A'} (
+                    {upgradeTarget.courseDuration}m) — Paid: ₹
+                    {(upgradeTarget.paidFees || 0).toLocaleString('en-IN')}
+                  </div>
+                )}
                 <div className="form-grid">
                   <div
                     style={{ gridColumn: '1 / -1' }}
@@ -1413,6 +1545,7 @@ export default function StudentManagement() {
                       className={`form-input ${errors.firstName ? 'error' : ''}`}
                       placeholder="e.g. Rahul"
                       value={form.firstName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, firstName: e.target.value })
                       }
@@ -1427,6 +1560,7 @@ export default function StudentManagement() {
                       className={`form-input ${errors.fatherName ? 'error' : ''}`}
                       placeholder="e.g. Suresh"
                       value={form.fatherName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, fatherName: e.target.value })
                       }
@@ -1441,6 +1575,7 @@ export default function StudentManagement() {
                       className={`form-input ${errors.lastName ? 'error' : ''}`}
                       placeholder="e.g. Kumar"
                       value={form.lastName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, lastName: e.target.value })
                       }
@@ -1455,6 +1590,7 @@ export default function StudentManagement() {
                       className="form-input"
                       placeholder="Name as it should appear on certificate (optional)"
                       value={form.certificateName}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, certificateName: e.target.value })
                       }
@@ -1472,6 +1608,7 @@ export default function StudentManagement() {
                       placeholder="10-digit number"
                       maxLength={10}
                       value={form.phoneNumber}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({
                           ...form,
@@ -1484,12 +1621,34 @@ export default function StudentManagement() {
                     )}
                   </div>
                   <div className="form-group">
+                    <label className="form-label">
+                      Aadhaar Number <span className="required">*</span>
+                    </label>
+                    <input
+                      className={`form-input ${errors.aadhaarNumber ? 'error' : ''}`}
+                      placeholder="12-digit aadhaar number"
+                      maxLength={12}
+                      value={form.aadhaarNumber}
+                      disabled={isUpgradeMode}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          aadhaarNumber: e.target.value.replace(/\D/g, ''),
+                        })
+                      }
+                    />
+                    {errors.aadhaarNumber && (
+                      <span className="form-error">{errors.aadhaarNumber}</span>
+                    )}
+                  </div>
+                  <div className="form-group">
                     <label className="form-label">Email</label>
                     <input
                       type="email"
                       className="form-input"
                       placeholder="Optional"
                       value={form.email}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, email: e.target.value })
                       }
@@ -1503,6 +1662,7 @@ export default function StudentManagement() {
                       className={`form-input ${errors.qualification ? 'error' : ''}`}
                       placeholder="e.g. B.Tech CSE"
                       value={form.qualification}
+                      disabled={isUpgradeMode}
                       onChange={(e) => {
                         const val = e.target.value.replace(
                           /[^a-zA-Z0-9 .]/g,
@@ -1524,6 +1684,7 @@ export default function StudentManagement() {
                       placeholder="Full address"
                       rows={2}
                       value={form.address}
+                      disabled={isUpgradeMode}
                       onChange={(e) =>
                         setForm({ ...form, address: e.target.value })
                       }
@@ -1844,176 +2005,176 @@ export default function StudentManagement() {
                     </span>
                   </div>
 
-                  {/* Document Upload Sections */}
-                  <div
-                    style={{ gridColumn: '1 / -1' }}
-                    className="form-section-title"
-                  >
-                    Document Uploads
-                  </div>
-
-                  {[
-                    {
-                      field: 'studentPhoto',
-                      label: '🖼️ Student Photo',
-                      hint: 'Clear passport-size photo (JPG, PNG) · Max 1 MB',
-                      accept: 'image/jpeg,image/jpg,image/png',
-                      cameraOk: true,
-                    },
-                    {
-                      field: 'qualificationDoc',
-                      label: '📜 Qualification Document',
-                      hint: 'Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB',
-                      accept: '.pdf,.jpg,.jpeg,.png',
-                      cameraOk: true,
-                    },
-                    {
-                      field: 'aadharCard',
-                      label: '🪪 Aadhar Card',
-                      hint: 'Front side of Aadhar card (JPG, PNG) · Max 1 MB',
-                      accept: 'image/jpeg,image/jpg,image/png',
-                      cameraOk: true,
-                    },
-                  ].map(({ field, label, hint, accept, cameraOk }) => (
-                    <div className="form-group" key={field}>
-                      <label className="form-label">{label}</label>
+                  {!isUpgradeMode && (
+                    <>
                       <div
-                        style={{
-                          display: 'flex',
-                          gap: '0.5rem',
-                          marginBottom: '0.25rem',
-                          flexWrap: 'wrap',
-                        }}
+                        style={{ gridColumn: '1 / -1' }}
+                        className="form-section-title"
                       >
-                        <label
-                          style={{
-                            flex: '1 1 48%',
-                            cursor: 'pointer',
-                            padding: '0.6rem 1rem',
-                            border: '1px solid var(--gray-300)',
-                            borderRadius: 'var(--radius-sm)',
-                            background: '#fff',
-                            fontSize: '0.9rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.5rem',
-                            minHeight: '44px',
-                          }}
-                        >
-                          📁 Choose File
-                          <input
-                            type="file"
-                            style={{ display: 'none' }}
-                            accept={accept}
-                            onChange={(e) =>
-                              handleDocChange(field, e.target.files[0])
-                            }
-                          />
-                        </label>
-                        {cameraOk && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setCameraField({
-                                field,
-                                label,
-                                handler: handleDocChange,
-                              })
-                            }
+                        Document Uploads
+                      </div>
+
+                      {[
+                        {
+                          field: 'studentPhoto',
+                          label: '🖼️ Student Photo',
+                          hint: 'Clear passport-size photo (JPG, PNG) · Max 1 MB',
+                          accept: 'image/jpeg,image/jpg,image/png',
+                          cameraOk: true,
+                        },
+                        {
+                          field: 'qualificationDoc',
+                          label: '📜 Qualification Document',
+                          hint: 'Mark sheet, degree or certificate (JPG, PNG, PDF) · Max 1 MB',
+                          accept: '.pdf,.jpg,.jpeg,.png',
+                          cameraOk: true,
+                        },
+                        {
+                          field: 'aadharCard',
+                          label: '🪪 Aadhar Card',
+                          hint: 'Front side of Aadhar card (JPG, PNG) · Max 1 MB',
+                          accept: 'image/jpeg,image/jpg,image/png',
+                          cameraOk: true,
+                        },
+                      ].map(({ field, label, hint, accept, cameraOk }) => (
+                        <div className="form-group" key={field}>
+                          <label className="form-label">{label}</label>
+                          <div
                             style={{
-                              flex: '1 1 48%',
-                              cursor: 'pointer',
-                              padding: '0.6rem 1rem',
-                              border: '1px solid var(--primary)',
-                              borderRadius: 'var(--radius-sm)',
-                              background: 'var(--primary-light,#eff6ff)',
-                              fontSize: '0.9rem',
                               display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
                               gap: '0.5rem',
-                              color: 'var(--primary)',
-                              fontWeight: 600,
-                              minHeight: '44px',
+                              marginBottom: '0.25rem',
+                              flexWrap: 'wrap',
                             }}
                           >
-                            📷 Camera
-                          </button>
-                        )}
-                      </div>
-                      <span className="form-hint">{hint}</span>
-                      {previews[field] && (
-                        <div
-                          style={{
-                            marginTop: '0.5rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                          }}
-                        >
-                          {previews[field] === 'pdf' ? (
-                            <div
+                            <label
                               style={{
-                                padding: '0.5rem',
-                                background: 'var(--success-light)',
-                                borderRadius: 4,
-                                display: 'inline-flex',
+                                flex: '1 1 48%',
+                                cursor: 'pointer',
+                                padding: '0.6rem 1rem',
+                                border: '1px solid var(--gray-300)',
+                                borderRadius: 'var(--radius-sm)',
+                                background: '#fff',
+                                fontSize: '0.9rem',
+                                display: 'flex',
                                 alignItems: 'center',
-                                gap: 6,
-                                fontSize: '0.8rem',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                minHeight: '44px',
                               }}
                             >
-                              <span>📄</span>
-                              <span
-                                style={{ color: '#15803d', fontWeight: 600 }}
+                              📁 Choose File
+                              <input
+                                type="file"
+                                style={{ display: 'none' }}
+                                accept={accept}
+                                onChange={(e) =>
+                                  handleDocChange(field, e.target.files[0])
+                                }
+                              />
+                            </label>
+                            {cameraOk && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setCameraField({
+                                    field,
+                                    label,
+                                    handler: handleDocChange,
+                                  })
+                                }
+                                style={{
+                                  flex: '1 1 48%',
+                                  cursor: 'pointer',
+                                  padding: '0.6rem 1rem',
+                                  border: '1px solid var(--primary)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  background: 'var(--primary-light,#eff6ff)',
+                                  fontSize: '0.9rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.5rem',
+                                  color: 'var(--primary)',
+                                  fontWeight: 600,
+                                  minHeight: '44px',
+                                }}
                               >
-                                {docs[field]?.name}
-                              </span>
-                            </div>
-                          ) : (
-                            <img
-                              src={previews[field]}
-                              alt={label}
+                                📷 Camera
+                              </button>
+                            )}
+                          </div>
+                          <span className="form-hint">{hint}</span>
+                          {previews[field] && (
+                            <div
                               style={{
-                                width: 80,
-                                height: 80,
-                                objectFit: 'cover',
-                                borderRadius: 6,
-                                border: '2px solid var(--primary)',
+                                marginTop: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
                               }}
-                            />
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDocDelete(field)}
-                            style={{
-                              padding: '0.4rem 0.6rem',
-                              background: '#fee2e2',
-                              border: '1px solid #fecaca',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              color: '#dc2626',
-                              fontWeight: 600,
-                            }}
-                          >
-                            🗑️ Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                            >
+                              {previews[field] === 'pdf' ? (
+                              <div
+                                style={{
+                                  padding: '0.5rem',
+                                  background: 'var(--success-light)',
+                                  borderRadius: 4,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  fontSize: '0.8rem',
+                                }}
+                              >
+                                <span>📄</span>
+                                <span
+                                  style={{ color: '#15803d', fontWeight: 600 }}
+                                >
+                                  {docs[field]?.name}
+                                </span>
+                              </div>
+                            ) : (
+                              <img
+                                src={previews[field]}
+                                alt={label}
+                                style={{
+                                  width: 80,
+                                  height: 80,
+                                  objectFit: 'cover',
+                                  borderRadius: 6,
+                                  border: '2px solid var(--primary)',
+                                }}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDocDelete(field)}
+                              style={{
+                                padding: '0.4rem 0.6rem',
+                                background: '#fee2e2',
+                                border: '1px solid #fecaca',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                color: '#dc2626',
+                                fontWeight: 600,
+                              }}
+                            >
+                              🗑️ Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                   ))}
+                    </>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
                 <button
                   type="button"
                   className="btn btn-outline"
-                  onClick={() => {
-                    enquiryIdRef.current = null
-                    setShowModal(false)
-                  }}
+                  onClick={resetFormState}
                 >
                   Cancel
                 </button>
@@ -2022,7 +2183,11 @@ export default function StudentManagement() {
                   className="btn btn-primary"
                   disabled={submitting}
                 >
-                  {submitting ? '⏳ Adding...' : '✅ Student Admission'}
+                  {submitting
+                    ? '⏳ Saving...'
+                    : isUpgradeMode
+                      ? '🔄 Upgrade Course'
+                      : '✅ Student Admission'}
                 </button>
               </div>
             </form>
@@ -2915,6 +3080,28 @@ export default function StudentManagement() {
                     )}
                   </div>
                   <div className="form-group">
+                    <label className="form-label">
+                      Aadhaar Number <span className="required">*</span>
+                    </label>
+                    <input
+                      className={`form-input ${editErrors.aadhaarNumber ? 'error' : ''}`}
+                      placeholder="12-digit aadhaar number"
+                      maxLength={12}
+                      value={editForm.aadhaarNumber}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          aadhaarNumber: e.target.value.replace(/\D/g, ''),
+                        })
+                      }
+                    />
+                    {editErrors.aadhaarNumber && (
+                      <span className="form-error">
+                        {editErrors.aadhaarNumber}
+                      </span>
+                    )}
+                  </div>
+                  <div className="form-group">
                     <label className="form-label">Email</label>
                     <input
                       type="email"
@@ -3057,7 +3244,7 @@ export default function StudentManagement() {
                         style={{ marginBottom: '0.5rem' }}
                       >
                         🏷️ Applied: {selectedStudent.discount.couponCode} (₹
-                        {selectedStudent.discount.amount} off)
+                        {selectedStudent.discount.appliedAmount || selectedStudent.discount.amount} off)
                       </div>
                     </div>
                   )}
@@ -3500,6 +3687,94 @@ export default function StudentManagement() {
           onCrop={(file) => handleEditCropApply(editCropModal.field, file)}
           onClose={() => setEditCropModal(null)}
         />
+      )}
+
+      {/* UPGRADE CONFIRMATION MODAL */}
+      {!isUpgradeMode && showUpgradeConfirm && duplicateData && (
+        <div
+          className="modal-overlay"
+          onClick={(e) =>
+            e.target === e.currentTarget && resetFormState()
+          }
+        >
+          <div className="modal modal-sm">
+            <div className="modal-header">
+              <h3 className="modal-title">🔄 Aadhaar Already Registered</h3>
+              <button
+                className="modal-close"
+                onClick={resetFormState}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div
+                style={{
+                  padding: '1rem',
+                  background: '#fef3c7',
+                  border: '1px solid #f59e0b',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '1rem',
+                }}
+              >
+                <strong>Aadhaar {form.aadhaarNumber}</strong> is already
+                registered to:
+              </div>
+              <div
+                style={{
+                  padding: '1rem',
+                  background: 'var(--gray-50)',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '1rem',
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
+                  {duplicateData.firstName} {duplicateData.fatherName}{' '}
+                  {duplicateData.lastName}
+                </div>
+                <div
+                  style={{
+                    color: 'var(--gray-500)',
+                    marginTop: '0.25rem',
+                  }}
+                >
+                  {duplicateData.phoneNumber}
+                </div>
+                <div
+                  style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem',
+                    background: '#e0f2fe',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  Currently enrolled in{' '}
+                  <strong>
+                    {duplicateData.course?.name ||
+                      duplicateData.course?.toString()}
+                  </strong>{' '}
+                  ({duplicateData.courseDuration} months)
+                </div>
+              </div>
+              <p>
+                Would you like to upgrade their course instead of creating a
+                duplicate record?
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-outline"
+                onClick={resetFormState}
+              >
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={openUpgradeModal}>
+                🔄 Upgrade Course
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
