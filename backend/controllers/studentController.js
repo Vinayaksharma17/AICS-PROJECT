@@ -41,7 +41,12 @@ exports.addStudent = async (req, res) => {
           firstName: existingAadhaar.firstName,
           fatherName: existingAadhaar.fatherName,
           lastName: existingAadhaar.lastName,
+          certificateName: existingAadhaar.certificateName,
           phoneNumber: existingAadhaar.phoneNumber,
+          aadhaarNumber: existingAadhaar.aadhaarNumber,
+          email: existingAadhaar.email,
+          address: existingAadhaar.address,
+          qualification: existingAadhaar.qualification,
           course: existingAadhaar.course,
           courseDuration: existingAadhaar.courseDuration,
           totalFees: existingAadhaar.totalFees,
@@ -52,12 +57,6 @@ exports.addStudent = async (req, res) => {
           certificateIssued: existingAadhaar.certificateIssued
         }
       });
-    }
-
-    const existing = await Student.findOne({ phoneNumber });
-    if (existing) {
-      cleanupUploadedFiles(req);
-      return res.status(400).json({ message: 'A student with this phone number already exists' });
     }
 
     let discountData = null;
@@ -244,6 +243,17 @@ exports.updateStudent = async (req, res) => {
       student.discount = null;
     }
 
+    if (student.paidFees > student.finalFees) {
+      const overage = student.paidFees - student.finalFees;
+      student.paidFees = student.finalFees;
+      if (student.payments && student.payments.length > 0) {
+        const lastIdx = student.payments.length - 1;
+        student.payments[lastIdx].amount = Math.max(
+          0, student.payments[lastIdx].amount - overage
+        );
+      }
+    }
+
     // Handle payment fields (initialPayment, initialPaymentMethod, installments)
     // Note: We ADD to existing paidFees, not replace it (for backward compatibility)
     if (req.body.initialPayment !== undefined) {
@@ -255,8 +265,9 @@ exports.updateStudent = async (req, res) => {
     }
     
     if (req.body.initialPaymentMethod && req.body.initialPayment !== undefined) {
-      // Only add payment record if this is a new payment (not just editing existing)
-      const existingInitialPayment = student.payments.find(p => p.remarks === 'Initial payment on enrollment');
+      const existingInitialPayment = student.payments.find(p =>
+        ['Initial payment on enrollment', 'Initial payment', 'First installment payment'].includes(p.remarks)
+      );
       if (!existingInitialPayment && Number(req.body.initialPayment) > 0) {
         student.payments.push({
           amount: Number(req.body.initialPayment),
@@ -562,6 +573,10 @@ exports.upgradeCourse = async (req, res) => {
         receivedBy: req.user._id
       });
     }
+
+    student.invoiceUrl = undefined;
+    student.invoiceNumber = undefined;
+    student.invoiceGenerated = false;
 
     await student.save();
 

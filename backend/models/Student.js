@@ -11,7 +11,7 @@ const studentSchema = new mongoose.Schema({
   address:       { type: String, required: [true, 'Please add address'] },
   qualification: { type: String, required: [true, 'Please add qualification'] },
   phoneNumber:   { type: String, required: [true, 'Please add phone number'], match: [/^[0-9]{10}$/, 'Please add a valid 10-digit phone number'] },
-  aadhaarNumber: { type: String, required: [true, 'Please add aadhaar number'], match: [/^[0-9]{12}$/, 'Please add a valid 12-digit aadhaar number'] },
+  aadhaarNumber: { type: String, match: [/^[0-9]{12}$/, 'Please add a valid 12-digit aadhaar number'] },
   email:         { type: String, trim: true, lowercase: true, match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email'] },
 
   // Specific Document Uploads (Issue #2)
