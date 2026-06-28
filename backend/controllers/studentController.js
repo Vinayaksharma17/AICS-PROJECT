@@ -23,16 +23,40 @@ const cleanupUploadedFiles = (req) => {
 exports.addStudent = async (req, res) => {
   try {
     const {
-      firstName, fatherName, lastName, certificateName, phoneNumber, email,
+      firstName, fatherName, lastName, certificateName, phoneNumber, aadhaarNumber, email,
       address, qualification, course, totalFees, paidFees,
       initialPaymentMethod, couponCode, courseDuration, admissionDate, installments,
       enquiryId
     } = req.body;
 
-    const existing = await Student.findOne({ phoneNumber });
-    if (existing) {
+    // Check Aadhaar first — duplicate gets upgrade prompt (takes priority over phone)
+    const existingAadhaar = await Student.findOne({ aadhaarNumber: req.body.aadhaarNumber }).populate('course', 'name duration fees');
+    if (existingAadhaar) {
       cleanupUploadedFiles(req);
-      return res.status(400).json({ message: 'A student with this phone number already exists' });
+      return res.status(409).json({
+        code: 'DUPLICATE_AADHAAR',
+        message: 'A student with this aadhaar number already exists',
+        existingStudent: {
+          _id: existingAadhaar._id,
+          firstName: existingAadhaar.firstName,
+          fatherName: existingAadhaar.fatherName,
+          lastName: existingAadhaar.lastName,
+          certificateName: existingAadhaar.certificateName,
+          phoneNumber: existingAadhaar.phoneNumber,
+          aadhaarNumber: existingAadhaar.aadhaarNumber,
+          email: existingAadhaar.email,
+          address: existingAadhaar.address,
+          qualification: existingAadhaar.qualification,
+          course: existingAadhaar.course,
+          courseDuration: existingAadhaar.courseDuration,
+          totalFees: existingAadhaar.totalFees,
+          finalFees: existingAadhaar.finalFees,
+          paidFees: existingAadhaar.paidFees,
+          enrollmentDate: existingAadhaar.enrollmentDate,
+          certificateNumber: existingAadhaar.certificateNumber,
+          certificateIssued: existingAadhaar.certificateIssued
+        }
+      });
     }
 
     let discountData = null;
@@ -80,7 +104,7 @@ exports.addStudent = async (req, res) => {
 
     const student = await Student.create({
       firstName, fatherName, lastName, certificateName,
-      phoneNumber, email, address, qualification,
+      phoneNumber, aadhaarNumber, email, address, qualification,
       course, totalFees: Number(totalFees),
       discount: discountData,
       finalFees,
@@ -183,7 +207,7 @@ exports.updateStudent = async (req, res) => {
     const student = await Student.findById(req.params.id);
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    const fields = ['firstName','fatherName','lastName','certificateName','phoneNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted','grade','certificateNumber'];
+    const fields = ['firstName','fatherName','lastName','certificateName','phoneNumber','aadhaarNumber','email','address','qualification','course','totalFees','status','courseDuration','courseCompleted','grade','certificateNumber'];
     fields.forEach(f => { if (req.body[f] !== undefined) student[f] = req.body[f]; });
 
     if (req.body.admissionDate) {
@@ -219,6 +243,17 @@ exports.updateStudent = async (req, res) => {
       student.discount = null;
     }
 
+    if (student.paidFees > student.finalFees) {
+      const overage = student.paidFees - student.finalFees;
+      student.paidFees = student.finalFees;
+      if (student.payments && student.payments.length > 0) {
+        const lastIdx = student.payments.length - 1;
+        student.payments[lastIdx].amount = Math.max(
+          0, student.payments[lastIdx].amount - overage
+        );
+      }
+    }
+
     // Handle payment fields (initialPayment, initialPaymentMethod, installments)
     // Note: We ADD to existing paidFees, not replace it (for backward compatibility)
     if (req.body.initialPayment !== undefined) {
@@ -230,8 +265,9 @@ exports.updateStudent = async (req, res) => {
     }
     
     if (req.body.initialPaymentMethod && req.body.initialPayment !== undefined) {
-      // Only add payment record if this is a new payment (not just editing existing)
-      const existingInitialPayment = student.payments.find(p => p.remarks === 'Initial payment on enrollment');
+      const existingInitialPayment = student.payments.find(p =>
+        ['Initial payment on enrollment', 'Initial payment', 'First installment payment'].includes(p.remarks)
+      );
       if (!existingInitialPayment && Number(req.body.initialPayment) > 0) {
         student.payments.push({
           amount: Number(req.body.initialPayment),
@@ -435,6 +471,122 @@ exports.downloadInvoice = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     fs.createReadStream(absPath).pipe(res);
 
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── PUT /students/:id/upgrade ───────────────────────────────────────────
+exports.upgradeCourse = async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    const { newCourse, newDuration, newFees, paidFees, paymentMethod, couponCode, admissionDate, installments } = req.body;
+
+    if (!newCourse || !newDuration || !newFees) {
+      return res.status(400).json({ message: 'New course, duration, and fees are required' });
+    }
+
+    const upgradeEntry = {
+      previousCourse: student.course,
+      previousDuration: student.courseDuration,
+      previousFees: student.finalFees,
+      newCourse,
+      newDuration: Number(newDuration),
+      newFees: Number(newFees),
+      upgradedAt: new Date(),
+      upgradedBy: req.user._id
+    };
+
+    const Course = require('../models/Course');
+    await Course.findByIdAndUpdate(student.course, { $inc: { enrolledCount: -1 } });
+    await Course.findByIdAndUpdate(newCourse, { $inc: { enrolledCount: 1 } });
+
+    const newTotalFees = Number(newFees);
+
+    // Apply discount if coupon code provided
+    let discountData = null;
+    let finalFees = newTotalFees;
+    if (couponCode) {
+      const Discount = require('../models/Discount');
+      const coupon = await Discount.findOne({ couponCode: couponCode.toUpperCase() });
+      if (!coupon || !coupon.isValid()) {
+        return res.status(400).json({ message: 'Invalid or expired coupon code' });
+      }
+      const applied = coupon.applyDiscount(newTotalFees);
+      finalFees = applied.finalFees;
+      discountData = { couponCode: coupon.couponCode, amount: coupon.amount, appliedAmount: applied.discountAmount };
+      await coupon.incrementUsage();
+    }
+
+    const initialPayment = Math.min(Number(paidFees) || 0, finalFees);
+
+    // Build installments
+    let installmentData = [];
+    if (installments && Array.isArray(installments)) {
+      installmentData = installments.map((inst, i) => {
+        const obj = {
+          installmentNumber: i + 1,
+          amount: inst.amount,
+          dueDate: new Date(inst.dueDate),
+          status: 'pending'
+        };
+        if (i === 0 && initialPayment > 0 && initialPayment >= inst.amount) {
+          obj.status = 'paid';
+          obj.paidDate = new Date();
+        }
+        return obj;
+      });
+    }
+
+    // Update enrollment date if provided
+    if (admissionDate) {
+      student.enrollmentDate = new Date(admissionDate);
+    }
+
+    student.courseUpgrades.push(upgradeEntry);
+    student.course = newCourse;
+    student.courseDuration = Number(newDuration);
+    student.totalFees = newTotalFees;
+    student.discount = discountData;
+    student.finalFees = finalFees;
+    student.paidFees = initialPayment;
+    student.pendingFees = Math.max(0, finalFees - initialPayment);
+    student.installments = installmentData;
+    student.payments = [];
+
+    student.certificateIssued = false;
+    student.certificateIssuedDate = undefined;
+    student.certificateEligible = false;
+
+    // Recalculate course end date from enrollmentDate
+    const end = new Date(student.enrollmentDate);
+    end.setMonth(end.getMonth() + Number(newDuration));
+    student.courseEndDate = end;
+
+    if (initialPayment > 0) {
+      student.payments.push({
+        amount: initialPayment,
+        paymentMethod: paymentMethod || 'cash',
+        remarks: 'Upgrade initial payment',
+        receivedBy: req.user._id
+      });
+    }
+
+    student.invoiceUrl = undefined;
+    student.invoiceNumber = undefined;
+    student.invoiceGenerated = false;
+
+    await student.save();
+
+    const populated = await Student.findById(student._id)
+      .populate('course', 'name duration fees')
+      .populate('addedBy', 'name')
+      .populate('courseUpgrades.previousCourse', 'name')
+      .populate('courseUpgrades.newCourse', 'name');
+
+    res.json({ message: 'Course upgraded successfully', student: populated });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
