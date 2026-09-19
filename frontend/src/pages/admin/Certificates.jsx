@@ -4,6 +4,8 @@ import 'react-image-crop/dist/ReactCrop.css'
 import api from '../../utils/api'
 
 const BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || ''
+// 7 days in milliseconds
+const CERT_WAIT_MS = 7 * 24 * 60 * 60 * 1000
 const emptyDocs = {
   studentPhoto: null,
   qualificationDoc: null,
@@ -462,6 +464,23 @@ export default function Certificates() {
     return { fullPaid, docsUploaded, eligible }
   }
 
+  // Calendar days still remaining in the 7-day waiting period after eligibility
+  const getWaitDaysRemaining = (s) => {
+    if (s.certificateIssued) return 0
+    const since = s.certificateEligibleSince
+      ? new Date(s.certificateEligibleSince)
+      : new Date()
+    const msLeft = CERT_WAIT_MS - (Date.now() - since.getTime())
+    return Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)))
+  }
+
+  const getAvailableOn = (s) => {
+    if (!s.certificateEligibleSince) return null
+    return new Date(
+      new Date(s.certificateEligibleSince).getTime() + CERT_WAIT_MS,
+    )
+  }
+
   const getEligibilityStatus = (s) => {
     if (s.certificateIssued) return 'issued'
     const { eligible } = checkEligibility(s)
@@ -622,8 +641,8 @@ export default function Certificates() {
                   color: 'var(--gray-700)',
                 }}
               >
-                <span>✅</span> <strong>7 Days After</strong> — 7 working days
-                after course completion
+                <span>✅</span> <strong>7 Days After</strong> — 7 calendar days
+                after eligibility is met
               </div>
               <div
                 style={{
@@ -742,6 +761,7 @@ export default function Certificates() {
                   {paginated.map((s) => {
                     const { fullPaid, docsUploaded } = checkEligibility(s)
                     const status = getEligibilityStatus(s)
+                    const waitDays = getWaitDaysRemaining(s)
                     return (
                       <tr key={s._id}>
                         <td data-label="Student">
@@ -801,6 +821,19 @@ export default function Certificates() {
                           {status === 'eligible' && (
                             <span className="badge badge-warning">
                               🎯 Eligible
+                            </span>
+                          )}
+                          {status === 'eligible' && waitDays > 0 && (
+                            <span
+                              className="badge"
+                              style={{
+                                marginLeft: '4px',
+                                background: '#fef3c7',
+                                color: '#92400e',
+                              }}
+                              title={`Available on ${getAvailableOn(s)?.toLocaleDateString('en-IN')}`}
+                            >
+                              🔒 {waitDays} day{waitDays > 1 ? 's' : ''} left
                             </span>
                           )}
                           {status === 'not_eligible' && (
@@ -868,11 +901,20 @@ export default function Certificates() {
                                   <button
                                     className="btn btn-sm btn-primary"
                                     onClick={() => generateCertificate(s)}
-                                    disabled={generating === s._id}
+                                    disabled={
+                                      generating === s._id || waitDays > 0
+                                    }
+                                    title={
+                                      waitDays > 0
+                                        ? `Available on ${getAvailableOn(s)?.toLocaleDateString('en-IN')}`
+                                        : ''
+                                    }
                                   >
                                     {generating === s._id
                                       ? '⏳'
-                                      : '📄 Generate'}
+                                      : waitDays > 0
+                                        ? `🔒 ${waitDays}d`
+                                        : '📄 Generate'}
                                   </button>
                                 )}
                                 {status === 'issued' && (
