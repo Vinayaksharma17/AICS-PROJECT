@@ -81,7 +81,7 @@ exports.generateCertificate = async (req, res) => {
 
     // 7-day waiting period for first-time issuance (re-prints skip this check)
     if (!student.certificateIssued) {
-      const WAIT_MS = 10 * 60 * 1000
+      const WAIT_MS = 7 * 24 * 60 * 60 * 1000
       const eligibleSince = student.certificateEligibleSince
         ? new Date(student.certificateEligibleSince)
         : new Date()

@@ -278,6 +278,12 @@ export default function Certificates() {
   const [alert, setAlert] = useState(null)
   const [generating, setGenerating] = useState(null)
   const [gradeMap, setGradeMap] = useState({})
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false)
@@ -464,13 +470,21 @@ export default function Certificates() {
     return { fullPaid, docsUploaded, eligible }
   }
 
-  // Calendar days still remaining in the 7-day waiting period after eligibility
+  // Calendar days still remaining in the waiting period after eligibility
   const getWaitDaysRemaining = (s) => {
     if (s.certificateIssued) return 0
     const since = s.certificateEligibleSince
       ? new Date(s.certificateEligibleSince)
       : new Date()
-    const msLeft = CERT_WAIT_MS - (Date.now() - since.getTime())
+    const msLeft = CERT_WAIT_MS - (now - since.getTime())
+    if (msLeft <= 0) return 0
+    // For short test periods (minutes), show minutes/seconds remaining
+    if (CERT_WAIT_MS < 24 * 60 * 60 * 1000) {
+      const minsLeft = Math.ceil(msLeft / (60 * 1000))
+      if (minsLeft < 1) return 0
+      // Return as "0 days" in terms of calendar days, but we'll handle display separately
+      return minsLeft // using this value to show minutes
+    }
     return Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)))
   }
 
@@ -831,9 +845,11 @@ export default function Certificates() {
                                 background: '#fef3c7',
                                 color: '#92400e',
                               }}
-                              title={`Available on ${getAvailableOn(s)?.toLocaleDateString('en-IN')}`}
+                              title={`Available at ${getAvailableOn(s)?.toLocaleTimeString('en-IN')}`}
                             >
-                              🔒 {waitDays} day{waitDays > 1 ? 's' : ''} left
+                              {CERT_WAIT_MS < 24 * 60 * 60 * 1000
+                                ? `🔒 ${waitDays} min left`
+                                : `🔒 ${waitDays} day${waitDays > 1 ? 's' : ''} left`}
                             </span>
                           )}
                           {status === 'not_eligible' && (
@@ -910,11 +926,13 @@ export default function Certificates() {
                                         : ''
                                     }
                                   >
-                                    {generating === s._id
-                                      ? '⏳'
-                                      : waitDays > 0
-                                        ? `🔒 ${waitDays}d`
-                                        : '📄 Generate'}
+                                {generating === s._id
+                                  ? '⏳'
+                                  : waitDays > 0
+                                    ? CERT_WAIT_MS < 24 * 60 * 60 * 1000
+                                      ? `🔒 ${waitDays}m`
+                                      : `🔒 ${waitDays}d`
+                                    : '📄 Generate'}
                                   </button>
                                 )}
                                 {status === 'issued' && (
