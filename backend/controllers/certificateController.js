@@ -79,6 +79,31 @@ exports.generateCertificate = async (req, res) => {
         pendingAmount: student.pendingFees,
       })
 
+    // 7-day waiting period for first-time issuance (re-prints skip this check)
+    if (!student.certificateIssued) {
+      const WAIT_MS = 7 * 24 * 60 * 60 * 1000
+      const eligibleSince = student.certificateEligibleSince
+        ? new Date(student.certificateEligibleSince)
+        : new Date()
+      if (!student.certificateEligibleSince) {
+        student.certificateEligibleSince = eligibleSince
+        await student.save()
+      }
+      if (Date.now() - eligibleSince.getTime() < WAIT_MS) {
+        return res.status(400).json({
+          message: 'Certificate can be issued 7 days after eligibility is met',
+          availableOn: new Date(eligibleSince.getTime() + WAIT_MS),
+          daysRemaining: Math.max(
+            1,
+            Math.ceil(
+              (WAIT_MS - (Date.now() - eligibleSince.getTime())) /
+                (24 * 60 * 60 * 1000),
+            ),
+          ),
+        })
+      }
+    }
+
     // Use passed grade — encodeURIComponent on frontend ensures '+' survives the trip
     const certificateGrade = (grade || student.grade || 'A').trim()
 
@@ -741,6 +766,11 @@ exports.getEligibleStudents = async (req, res) => {
         )
         const studentNumber = studentIndex + 1
         student.certificateNumber = `${yy}AICES${String(studentNumber).padStart(4, '0')}`
+      }
+      // Ensure every eligible student has a recorded eligibility timestamp,
+      // so the 7-day wait has a solid baseline (starts "now" for existing students).
+      if (!student.certificateEligibleSince) {
+        student.certificateEligibleSince = new Date()
         await student.save()
       }
     }

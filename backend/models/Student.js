@@ -61,6 +61,7 @@ const studentSchema = new mongoose.Schema({
 
   // Certificate
   certificateEligible:   { type: Boolean, default: false },
+  certificateEligibleSince: Date, // first moment all eligibility conditions were met (drives the 7-day wait)
   certificateIssued:     { type: Boolean, default: false },
   certificateIssuedDate: Date,
   certificateNumber:     String, // Format: YYAICES001
@@ -130,6 +131,16 @@ studentSchema.pre('save', function(next) {
 
   // Certificate eligibility: full payment + all 3 documents uploaded
   this.certificateEligible = (this.pendingFees === 0 && this.profileComplete);
+
+  // Track when the student first became eligible. The date persists across
+  // subsequent eligible saves, and resets whenever they fall out of eligibility,
+  // so the 7-day certificate wait always starts from the last moment all
+  // conditions were met.
+  if (this.certificateEligible) {
+    if (!this.certificateEligibleSince) this.certificateEligibleSince = new Date();
+  } else {
+    this.certificateEligibleSince = undefined;
+  }
 
   next();
 });
