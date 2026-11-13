@@ -62,6 +62,30 @@ function hRule(doc, x1, y, x2, w, color) {
   doc.lineWidth(w).strokeColor(color).moveTo(x1, y).lineTo(x2, y).stroke()
 }
 
+// Certificate lock-in: 7 days after the course duration ends
+const CERT_WAIT_MS = 7 * 24 * 60 * 60 * 1000
+
+function addMonths(date, months) {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + Number(months || 0))
+  return d
+}
+
+// Resolve the course end date, falling back to enrollmentDate + duration for
+// records saved before courseEndDate was computed.
+function getCourseEndDate(student) {
+  if (student.courseEndDate) return new Date(student.courseEndDate)
+  const base = student.enrollmentDate || student.createdAt || new Date()
+  const months = Number(
+    student.courseDuration || (student.course && student.course.duration) || 0,
+  )
+  return months > 0 ? addMonths(base, months) : new Date(base)
+}
+
+function getCertificateAvailableAt(student) {
+  return new Date(getCourseEndDate(student).getTime() + CERT_WAIT_MS)
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 exports.generateCertificate = async (req, res) => {
   try {
@@ -78,26 +102,25 @@ exports.generateCertificate = async (req, res) => {
         message: 'Cannot issue certificate with pending fees',
         pendingAmount: student.pendingFees,
       })
+    if (!student.profileComplete)
+      return res.status(400).json({
+        message: 'Cannot issue certificate until all documents are uploaded',
+      })
 
-    // 7-day waiting period for first-time issuance (re-prints skip this check)
+    // Certificate lock-in: 7 days after the course duration ends.
+    // Re-prints skip this check.
     if (!student.certificateIssued) {
-      const WAIT_MS = 7 * 24 * 60 * 60 * 1000
-      const eligibleSince = student.certificateEligibleSince
-        ? new Date(student.certificateEligibleSince)
-        : new Date()
-      if (!student.certificateEligibleSince) {
-        student.certificateEligibleSince = eligibleSince
-        await student.save()
-      }
-      if (Date.now() - eligibleSince.getTime() < WAIT_MS) {
+      const courseEndDate = getCourseEndDate(student)
+      const availableAt = getCertificateAvailableAt(student)
+      if (Date.now() < availableAt.getTime()) {
         return res.status(400).json({
-          message: 'Certificate can be issued 7 days after eligibility is met',
-          availableOn: new Date(eligibleSince.getTime() + WAIT_MS),
+          message: 'Certificate can be issued 7 days after the course duration ends',
+          availableOn: availableAt,
+          courseEndDate,
           daysRemaining: Math.max(
             1,
             Math.ceil(
-              (WAIT_MS - (Date.now() - eligibleSince.getTime())) /
-                (24 * 60 * 60 * 1000),
+              (availableAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
             ),
           ),
         })
@@ -766,12 +789,6 @@ exports.getEligibleStudents = async (req, res) => {
         )
         const studentNumber = studentIndex + 1
         student.certificateNumber = `${yy}AICES${String(studentNumber).padStart(4, '0')}`
-      }
-      // Ensure every eligible student has a recorded eligibility timestamp,
-      // so the 7-day wait has a solid baseline (starts "now" for existing students).
-      if (!student.certificateEligibleSince) {
-        student.certificateEligibleSince = new Date()
-        await student.save()
       }
     }
 
